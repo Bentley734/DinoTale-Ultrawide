@@ -1,4 +1,4 @@
-# DinoTale 32:9 — installable mod v0.2.0
+# DinoTale 32:9 — installable mod v0.2.1
 
 True 32:9 Expand gameplay in the **official Windows DinoTale 0.1.8**.
 The package contains a normal `.nrm` mod and a companion native DLL.
@@ -30,12 +30,18 @@ Other versions and custom builds are rejected before any changes are made.
 It is not a Linux release. A future DinoTale update needs a compatible mod
 update; there is no wildcard scanning or guessing of replacement locations.
 
-The native companion changes four checked locations in process memory: the
+The native companion changes five checked locations in process memory: the
 game's aspect limit, its precomputed maximum tile-column count, the renderer
-limit, and the original game's heap end. The heap can use the otherwise
+limit, the original game's heap end, and its tile-request allocation
+threshold. The heap can use the otherwise
 unused upper 4 MB while staying below the runtime's reserved addresses.
 Changes are applied before game startup. The executable on disk remains
 unchanged.
+
+Version 0.2.1 corrects an original allocation threshold that treated the
+104-byte request pool as if it held 104 two-byte tile IDs. At 32:9, 54/55-ID
+requests overwrote adjacent requests and caused missing rectangular tiles.
+Requests larger than 52 IDs now use the game's existing heap path.
 
 Expand is experimental. Menus retain their original framing, and scenery
 ends where the original level art ends. Existing upstream object-visibility
@@ -47,15 +53,17 @@ official build's HUD options and resize behavior.
 
 - Verified against a freshly downloaded official Windows 0.1.8 package.
 - Mod loader accepted the `.nrm` and loaded its companion DLL.
-- Read back all four locations in the running official game and confirmed
+- Read back the checked patch locations in the running official game and confirmed
   their replacement values; the game booted and its audio task ran.
 - Verified the executable's SHA-256 stayed unchanged after loading the mod.
 - Patch-plan, bounds, byte-mismatch, hash-streaming, restoration-plan and
   unsupported-host rejection tests passed.
+- The tile-request regression reproduces neighboring-slot corruption for
+  53/54/55-entry requests and verifies that the corrected threshold avoids it.
+- After installation in regular DinoTale, the user confirmed that the
+  missing Cloud Cruising platform and wave tiles are fixed.
 
-The earlier custom build was confirmed working by the user. Full level
-coverage and screenshot-based gameplay verification of this standalone mod
-are not claimed.
+Full level coverage at 32:9 is not claimed.
 
 ## Source and build
 

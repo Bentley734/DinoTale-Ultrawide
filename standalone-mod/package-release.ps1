@@ -1,4 +1,4 @@
-param([string]$Version = "0.2.0")
+param([string]$Version = "0.2.1")
 $ErrorActionPreference = "Stop"
 if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw "Invalid mod version." }
 $root = Split-Path $PSScriptRoot -Parent

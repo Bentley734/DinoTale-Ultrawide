@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.2.1 — missing background tile fix
+
+- Fix rectangular holes in platforms, waves and other background layers at
+  32:9. The game's 104-byte tile-request pool holds 52 two-byte tile IDs,
+  but its threshold admitted requests of up to 104 IDs. Wider 54/55-entry
+  rows overwrote neighboring requests. Requests above 52 now use the
+  existing heap allocation and free path.
+- Add a regression that reproduces adjacent-slot corruption and verifies
+  the corrected allocation boundary, including 54/55-entry 32:9 rows.
+- The user confirmed the missing Cloud Cruising tiles are fixed after
+  installing this update in regular DinoTale.
+
 ## 0.2.0 — standalone mod
 
 - Deliver 32:9 through the official Windows DinoTale 0.1.8 mod loader as

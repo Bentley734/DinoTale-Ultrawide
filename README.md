@@ -2,7 +2,7 @@
 
 ## Current release: installable 32:9 mod
 
-[Download v0.2.0](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
+[Download v0.2.1](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
 for the **official Windows DinoTale 0.1.8**. Copy both
 `DinoTale-32x9.nrm` and `DinoTale32x9.dll` into
 `%LOCALAPPDATA%\dinotale\mods` (or the portable game's `mods` folder),
@@ -14,6 +14,9 @@ installation, validation and source build instructions. This mod only
 supports its checked official Windows 0.1.8 executable; other versions are
 rejected. Set fullscreen before entering a level and reload the level after
 widening the window.
+
+Version 0.2.1 fixes the missing rectangular platform and wave tiles in
+Cloud Cruising by correcting an undersized tile-request pool allocation.
 
 ## Earlier custom build
 

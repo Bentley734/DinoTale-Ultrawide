@@ -18,6 +18,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Building patch-plan tests failed." }
     & .\PatchPlanTest.exe
     if ($LASTEXITCODE -ne 0) { throw "Patch-plan tests failed." }
+    & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /UNDEBUG /MT (Join-Path $PSScriptRoot "native\tile_request_pool_test.cpp") /FeTileRequestPoolTest.exe
+    if ($LASTEXITCODE -ne 0) { throw "Building tile-request regression test failed." }
+    & .\TileRequestPoolTest.exe
+    if ($LASTEXITCODE -ne 0) { throw "Tile-request regression test failed." }
     & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /MT (Join-Path $PSScriptRoot "native\verify_plugin.cpp") /FeVerifyPlugin.exe
     if ($LASTEXITCODE -ne 0) { throw "Building plugin verification tool failed." }
     & .\VerifyPlugin.exe --reject (Join-Path $output "DinoTale32x9.dll")

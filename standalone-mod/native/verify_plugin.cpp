@@ -44,6 +44,6 @@ int wmain(int argc, wchar_t** argv) {
         }
     }
     CloseHandle(process);
-    if (good) { std::puts("Official host loaded companion DLL; all four in-memory patches verified"); }
+    if (good) { std::puts("Official host loaded companion DLL; all five in-memory patches verified"); }
     return good ? 0 : 1;
 }
