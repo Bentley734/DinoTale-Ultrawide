@@ -1,0 +1,20 @@
+[manifest]
+id = "dinotale_32x9"
+version = "0.2.0"
+display_name = "DinoTale 32:9"
+description = "True 32:9 Expand support for the supported Windows DinoTale 0.1.8 executable. Requires the companion DinoTale32x9.dll beside this mod. Enable before starting the game, then choose Expand before entering a level."
+short_description = "Dedicated true 32:9 support."
+authors = ["Bentley734"]
+game_id = "yoshisstory"
+minimum_recomp_version = "0.1.8"
+
+[[manifest.native_libraries]]
+name = "DinoTale32x9"
+funcs = ["dinotale32x9_marker"]
+
+[inputs]
+elf_path = "../build/standalone-mod/bootstrap.elf"
+mod_filename = "DinoTale-32x9"
+func_reference_syms_file = "../YoshiStorySyms/yoshisstory.us.syms.toml"
+data_reference_syms_files = []
+additional_files = []

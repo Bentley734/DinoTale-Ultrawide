@@ -1,5 +1,22 @@
 # DinoTale Ultrawide
 
+## Current release: installable 32:9 mod
+
+[Download v0.2.0](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
+for the **official Windows DinoTale 0.1.8**. Copy both
+`DinoTale-32x9.nrm` and `DinoTale32x9.dll` into
+`%LOCALAPPDATA%\dinotale\mods` (or the portable game's `mods` folder),
+enable **DinoTale 32:9** before gameplay, choose **Expand**, and enter a level
+in fullscreen on your 32:9 display. The official executable stays unchanged.
+
+See [standalone-mod/README.md](standalone-mod/README.md) for compatibility,
+installation, validation and source build instructions. This mod only
+supports its checked official Windows 0.1.8 executable; other versions are
+rejected. Set fullscreen before entering a level and reload the level after
+widening the window.
+
+## Earlier custom build
+
 A dedicated **32:9** build of
 [DinoTale by wootbeer](https://github.com/wootbeer/dinotale), based on 0.1.8.
 Yoshi and the scenery keep their proportions while the game streams a wider

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0 — standalone mod
+
+- Deliver 32:9 through the official Windows DinoTale 0.1.8 mod loader as
+  `DinoTale-32x9.nrm` plus `DinoTale32x9.dll`, without replacing the executable.
+- Verify the whole executable identity and four exact patch sites before
+  applying in-memory aspect, tile-column and heap-limit changes.
+- Reject unsupported executables and block mod toggling during gameplay.
+- Confirm loading and all four patch values in an isolated official game;
+  verify that its on-disk executable remains unchanged.
+- Preserve stock HUD and resizing behavior. The earlier custom build's
+  separate centered 16:9 HUD and allocation-aware resize cap are not part
+  of this standalone implementation.
+
 ## 0.1.8-ultrawide.1
 
 - Expand gameplay up to 32:9, including wider background streaming, camera
