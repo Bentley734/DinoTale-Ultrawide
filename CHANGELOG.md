@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.3 — repeating backdrops and smoother camera follow
+
+- Extend decorative backdrops backward into the exposed left edge of the
+  expanded view. The rule applies across levels to collision-free layers
+  with a proven repeated chunk pattern or an authored repeat flag.
+- Use the shortest proven visual period to keep the new tiles aligned at
+  the seam. Fill only negative-X tile entries and expose eligible repeating
+  backdrops at the left edge.
+- Inspect the actual foreground left strip in CI8, IA8 and I8 layers.
+  Transparent strips reveal the filled sky after camera movement instead
+  of adding an opaque black cover. Suppress the mask before publication
+  to avoid a race with the render thread.
+- Ease horizontal velocity during normal Expand camera follow, before the
+  original wall probe. Reset on camera/player changes, teleports, long
+  update gaps and Original mode. A native caller gate preserves camera
+  initialization and scripted paths; vertical movement remains unchanged.
+- Preserve positive-X tiles, vertical guards, foreground/collision data
+  and Original mode. Keep the wider object loading and tile-request
+  allocation fixes from 0.2.2 and 0.2.1.
+- Add background pattern/fill regressions and bounded RT-to-background
+  association tests, transparent-strip/mask publication checks, and camera
+  motion/reset regressions. The complete native test suite passed.
+- Verified all five hooks in regular official DinoTale. The user confirmed
+  the background stays visible after scrolling and the camera is smoother.
+  Complete level-by-level playtesting is not claimed.
+
 ## 0.2.2 — wider enemy and object loading
 
 - Extend the shared placement loader and retention predicates across the

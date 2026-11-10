@@ -28,6 +28,24 @@ int main() {
     assert(address == 0x123456789ABCDEF0ULL);
     assert(jump.replacement[0] == 0xFF && jump.replacement[1] == 0x25);
     for (size_t i=14; i<18; ++i) { assert(jump.replacement[i] == 0x90); }
+    assert(!background_guards_match(image));
+    assert(!camera_guards_match(image));
+    std::memcpy(image.data()+camera_wall_rva,camera_wall_prologue.data(),camera_wall_prologue.size());
+    assert(camera_guards_match(image));
+    image[camera_wall_rva+17] ^= 1;
+    assert(!camera_guards_match(image));
+    image[camera_wall_rva+17] ^= 1;
+    std::memcpy(image.data()+background_copy_rva, background_copy_prologue.data(), background_copy_prologue.size());
+    std::memcpy(image.data()+background_cover_rva, background_cover_prologue.data(), background_cover_prologue.size());
+    assert(background_guards_match(image));
+    const auto copy_jump = make_function_jump(background_copy_rva,background_copy_prologue,0x12345678);
+    const auto cover_jump = make_function_jump(background_cover_rva,background_cover_prologue,0x12345678);
+    assert(copy_jump.size == 16 && cover_jump.size == 15);
+    image[background_copy_rva+15] ^= 1;
+    assert(!background_guards_match(image));
+    image[background_copy_rva+15] ^= 1;
+    image[background_cover_rva+14] ^= 1;
+    assert(!background_guards_match(image));
     assert(!matches({image.data(), image.size()-1}));
     // Check every site before writing anything, so a changed host cannot be
     // left with only some of the limits lifted.

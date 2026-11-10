@@ -26,6 +26,12 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Building visibility tests failed." }
     & .\VisibilityTest.exe
     if ($LASTEXITCODE -ne 0) { throw "Visibility tests failed." }
+    foreach ($test in @("background_repeat", "background_lookup", "background_cover", "camera_smoothing")) {
+        & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /UNDEBUG /MT (Join-Path $PSScriptRoot "native\${test}_test.cpp") "/Fe${test}_test.exe"
+        if ($LASTEXITCODE -ne 0) { throw "Building $test tests failed." }
+        & ".\${test}_test.exe"
+        if ($LASTEXITCODE -ne 0) { throw "$test tests failed." }
+    }
     & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /MT (Join-Path $PSScriptRoot "native\verify_plugin.cpp") /FeVerifyPlugin.exe
     if ($LASTEXITCODE -ne 0) { throw "Building plugin verification tool failed." }
     & .\VerifyPlugin.exe --reject (Join-Path $output "DinoTale32x9.dll")

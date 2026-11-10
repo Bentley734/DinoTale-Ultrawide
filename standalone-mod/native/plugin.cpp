@@ -1,9 +1,14 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
+#include <intrin.h>
 
 #include "patch_plan.hpp"
 #include "visibility_math.hpp"
+#include "background_repeat.hpp"
+#include "background_lookup.hpp"
+#include "background_cover.hpp"
+#include "camera_smoothing.hpp"
 #include "recomp.h"
 
 extern "C" {
@@ -11,6 +16,10 @@ __declspec(dllexport) uint32_t recomp_api_version = 1;
 __declspec(dllexport) void dinotale32x9_marker(uint8_t*, void*) {}
 __declspec(dllexport) uint64_t dinotale32x9_visibility_checks = 0;
 __declspec(dllexport) uint64_t dinotale32x9_wide_visibility_checks = 0;
+__declspec(dllexport) uint64_t dinotale32x9_background_tiles = 0;
+__declspec(dllexport) uint64_t dinotale32x9_background_masks_cleared = 0;
+__declspec(dllexport) uint64_t dinotale32x9_camera_steps = 0;
+__declspec(dllexport) uint64_t dinotale32x9_eased_camera_steps = 0;
 }
 
 namespace {
@@ -26,6 +35,85 @@ struct VisibilityHook {
     bool applied = false;
 };
 std::array<VisibilityHook, 2> visibility_hooks{};
+std::array<VisibilityHook, 3> background_hooks{};
+using CoverFunction = void (*)(uint8_t*, uint32_t, uint32_t);
+dinotale32x9::HorizontalCameraSmoother camera_smoother;
+
+bool expanded_view_active() { return screen_x_mapper(-1048576) != -1048576; }
+
+void copy_background_tiles(uint8_t* rdram, recomp_context* ctx) {
+    const uint32_t stack = uint32_t(ctx->r29);
+    const bool capture = stack >= 0x80000000U && stack <= 0x80800000U-0x20U;
+    dinotale32x9::BackgroundTileRequest request{};
+    if (capture) {
+        auto argument = [&](uint32_t offset) {
+            uint32_t value = 0;
+            std::memcpy(&value, rdram+(stack-0x80000000U)+offset, sizeof(value));
+            return int32_t(int16_t(value));
+        };
+        request = {uint32_t(ctx->r4), uint32_t(ctx->r5), uint32_t(ctx->r7), int32_t(int16_t(ctx->r6)),
+            argument(0x10), argument(0x14), argument(0x18), argument(0x1C)};
+    }
+    background_hooks[0].original(rdram, ctx);
+    if (capture && request.start_x<0 && expanded_view_active()) {
+        const auto result = dinotale32x9::fill_negative_background_tiles({rdram,0x800000}, request);
+        dinotale32x9_background_tiles += result.entries_written;
+    }
+}
+
+void cover_background(uint8_t* rdram, uint32_t rt, uint32_t object) {
+    const std::span<uint8_t> memory{rdram,0x800000};
+    bool inhibit = false;
+    if (expanded_view_active()) {
+        const uint32_t background = dinotale32x9::find_background_for_render_target(memory, rt);
+        if (background) {
+            const uint32_t at = rt-0x80000000U;
+            const uint8_t format = rdram[(at+8)^3U];
+            // CI8, IA8 and I8 use the same tile-ID/ring-buffer pipeline.
+            if (format >= 2 && format <= 4 && rdram[(at+9)^3U] == 1) {
+                inhibit = dinotale32x9::inspect_background_repeat(memory, background).eligible
+                    || dinotale32x9::background_left_strip_transparent(memory,rt,object);
+            }
+        }
+    }
+    // Suppress the native mask before it is published to the render thread.
+    // Transparent foreground strips must reveal the repeated sky beneath.
+    dinotale32x9::dispatch_background_cover(memory,object,inhibit,[&]() {
+        reinterpret_cast<CoverFunction>(background_hooks[1].trampoline)(rdram,rt,object);
+    });
+    if (inhibit) { ++dinotale32x9_background_masks_cleared; }
+}
+
+__declspec(noinline) void ease_camera(uint8_t* rdram, recomp_context* ctx) {
+    const auto caller = reinterpret_cast<uintptr_t>(_ReturnAddress());
+    const uint32_t camera = uint32_t(ctx->r4);
+    const std::span<const uint8_t> memory{rdram,0x800000};
+    uint32_t at = 0;
+    bool enabled = caller == reinterpret_cast<uintptr_t>(host_image)+dinotale32x9::camera_follow_return_rva
+        && expanded_view_active() && (camera&3U) == 0
+        && dinotale32x9::background_cover_detail::range(camera,0xF0,memory.size(),at);
+    if (enabled) {
+        enabled = dinotale32x9::background_cover_detail::word(memory,at+0xEC) == 0x8002ABD0U;
+    }
+    if (enabled) {
+        const uint32_t player = dinotale32x9::background_cover_detail::word(memory,at+0xE8);
+        float position = 0, velocity = 0;
+        std::memcpy(&position,rdram+at+0x84,sizeof(position));
+        std::memcpy(&velocity,rdram+at+0xAC,sizeof(velocity));
+        const float eased = camera_smoother.smooth({camera,player,GetTickCount64(),position,velocity,true});
+        std::memcpy(rdram+at+0xAC,&eased,sizeof(eased));
+        ++dinotale32x9_camera_steps;
+        if (eased != velocity) { ++dinotale32x9_eased_camera_steps; }
+    }
+    else { camera_smoother.reset(); }
+    // The game's wall probe runs after easing and remains authoritative.
+    background_hooks[2].original(rdram,ctx);
+    if (enabled) {
+        float accepted = 0;
+        std::memcpy(&accepted,rdram+at+0xAC,sizeof(accepted));
+        camera_smoother.accept_clamped_velocity(accepted);
+    }
+}
 
 void run_visibility(size_t index, uint8_t* rdram, recomp_context* ctx) {
     ++dinotale32x9_visibility_checks;
@@ -43,10 +131,12 @@ void outer_visibility(uint8_t* rdram, recomp_context* ctx) { run_visibility(0, r
 void inner_visibility(uint8_t* rdram, recomp_context* ctx) { run_visibility(1, rdram, ctx); }
 
 void free_visibility_trampolines() {
-    for (auto& hook : visibility_hooks) {
-        if (hook.trampoline) { VirtualFree(hook.trampoline, 0, MEM_RELEASE); }
-        hook.trampoline = nullptr;
-        hook.original = nullptr;
+    for (auto hooks : {std::span<VisibilityHook>{visibility_hooks},std::span<VisibilityHook>{background_hooks}}) {
+        for (auto& hook : hooks) {
+            if (hook.trampoline) { VirtualFree(hook.trampoline, 0, MEM_RELEASE); }
+            hook.trampoline = nullptr;
+            hook.original = nullptr;
+        }
     }
 }
 
@@ -67,6 +157,29 @@ bool prepare_visibility_hooks() {
         hook.original = reinterpret_cast<Predicate>(hook.trampoline);
     }
     screen_x_mapper = reinterpret_cast<ScreenXMapper>(host_image+dinotale32x9::screen_x_mapper_rva);
+    const std::array<dinotale32x9::Patch,3> backgrounds{
+        dinotale32x9::make_function_jump(dinotale32x9::background_copy_rva, dinotale32x9::background_copy_prologue,
+            reinterpret_cast<uintptr_t>(&copy_background_tiles)),
+        dinotale32x9::make_function_jump(dinotale32x9::background_cover_rva, dinotale32x9::background_cover_prologue,
+            reinterpret_cast<uintptr_t>(&cover_background)),
+        dinotale32x9::make_function_jump(dinotale32x9::camera_wall_rva, dinotale32x9::camera_wall_prologue,
+            reinterpret_cast<uintptr_t>(&ease_camera))
+    };
+    for (size_t i=0; i<background_hooks.size(); ++i) {
+        auto& hook = background_hooks[i];
+        hook.patch = backgrounds[i];
+        hook.trampoline = VirtualAlloc(nullptr, 32, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!hook.trampoline) { free_visibility_trampolines(); return false; }
+        auto* code = static_cast<uint8_t*>(hook.trampoline);
+        std::memcpy(code, hook.patch.original.data(), hook.patch.size);
+        const auto back = dinotale32x9::make_function_jump(0,
+            {hook.patch.original.data(),hook.patch.size}, reinterpret_cast<uintptr_t>(host_image+hook.patch.rva+hook.patch.size));
+        std::memcpy(code+hook.patch.size, back.replacement.data(), 14);
+        DWORD unused = 0;
+        if (!VirtualProtect(code,32,PAGE_EXECUTE_READ,&unused)) { free_visibility_trampolines(); return false; }
+        FlushInstructionCache(GetCurrentProcess(),code,32);
+        hook.original = reinterpret_cast<Predicate>(hook.trampoline);
+    }
     return true;
 }
 
@@ -126,7 +239,8 @@ bool install() {
     const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(host_image + dos->e_lfanew);
     if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) { return false; }
     const std::span<const uint8_t> image{host_image, nt->OptionalHeader.SizeOfImage};
-    if (!dinotale32x9::matches(image) || !dinotale32x9::visibility_guards_match(image)) { return false; }
+    if (!dinotale32x9::matches(image) || !dinotale32x9::visibility_guards_match(image)
+            || !dinotale32x9::background_guards_match(image) || !dinotale32x9::camera_guards_match(image)) { return false; }
     if (!prepare_visibility_hooks()) { return false; }
     size_t applied = 0;
     for (; applied < dinotale32x9::patches.size(); ++applied) {
@@ -145,6 +259,16 @@ bool install() {
         }
         visibility_hooks[i].applied = true;
     }
+    for (size_t i=0; i<background_hooks.size(); ++i) {
+        if (!write_patch(background_hooks[i].patch,false)) {
+            while (i>0) { write_patch(background_hooks[--i].patch,true); background_hooks[i].applied=false; }
+            for (auto& hook : visibility_hooks) { if (hook.applied) { write_patch(hook.patch,true); hook.applied=false; } }
+            while (applied>0) { write_patch(dinotale32x9::patches[--applied],true); }
+            free_visibility_trampolines();
+            return false;
+        }
+        background_hooks[i].applied = true;
+    }
     OutputDebugStringW(L"DinoTale 32:9: enabled on stock Windows 0.1.8; executable on disk unchanged.\n");
     installed = true;
     return true;
@@ -157,6 +281,9 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
         return install() ? TRUE : FALSE;
     }
     if (reason == DLL_PROCESS_DETACH && installed && reserved == nullptr) {
+        for (auto it=background_hooks.rbegin(); it!=background_hooks.rend(); ++it) {
+            if (it->applied) { write_patch(it->patch,true); it->applied=false; }
+        }
         for (auto it=visibility_hooks.rbegin(); it!=visibility_hooks.rend(); ++it) {
             if (it->applied) { write_patch(it->patch, true); it->applied = false; }
         }

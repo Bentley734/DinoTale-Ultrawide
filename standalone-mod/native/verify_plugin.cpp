@@ -50,14 +50,21 @@ int wmain(int argc, wchar_t** argv) {
             good = false;
         }
     }
-    for (uint32_t rva : dinotale32x9::visibility_rvas) {
-        std::array<uint8_t,18> bytes{};
+    const std::array hooks{
+        std::pair{dinotale32x9::visibility_rvas[0], std::span<const uint8_t>{dinotale32x9::visibility_prologue}},
+        std::pair{dinotale32x9::visibility_rvas[1], std::span<const uint8_t>{dinotale32x9::visibility_prologue}},
+        std::pair{dinotale32x9::background_copy_rva, std::span<const uint8_t>{dinotale32x9::background_copy_prologue}},
+        std::pair{dinotale32x9::background_cover_rva, std::span<const uint8_t>{dinotale32x9::background_cover_prologue}},
+        std::pair{dinotale32x9::camera_wall_rva, std::span<const uint8_t>{dinotale32x9::camera_wall_prologue}}
+    };
+    for (const auto& [rva, prologue] : hooks) {
+        std::array<uint8_t,32> bytes{};
         SIZE_T count = 0;
-        if (!ReadProcessMemory(process, base+rva, bytes.data(), bytes.size(), &count) || count != bytes.size()) { good = false; continue; }
+        if (!ReadProcessMemory(process, base+rva, bytes.data(), prologue.size(), &count) || count != prologue.size()) { good = false; continue; }
         uintptr_t destination = 0;
         std::memcpy(&destination, bytes.data()+6, sizeof(destination));
-        const auto expected = dinotale32x9::make_visibility_jump(rva, destination);
-        if (std::memcmp(bytes.data(), expected.replacement.data(), bytes.size()) != 0
+        const auto expected = dinotale32x9::make_function_jump(rva, prologue, destination);
+        if (std::memcmp(bytes.data(), expected.replacement.data(), prologue.size()) != 0
                 || destination < reinterpret_cast<uintptr_t>(companion)
                 || destination >= reinterpret_cast<uintptr_t>(companion)+companion_size) { good = false; }
     }
@@ -66,8 +73,10 @@ int wmain(int argc, wchar_t** argv) {
         return offset <= companion_size && size <= companion_size-offset
             && ReadProcessMemory(process, companion+offset, data, size, &count) && count == size;
     };
-    uint64_t visibility_checks = 0, wide_checks = 0;
-    bool checks_found = false, wide_found = false;
+    uint64_t visibility_checks = 0, wide_checks = 0, background_tiles = 0, masks_cleared = 0;
+    uint64_t camera_steps = 0, eased_camera_steps = 0;
+    bool checks_found = false, wide_found = false, tiles_found = false, masks_found = false;
+    bool camera_found = false, eased_camera_found = false;
     IMAGE_DOS_HEADER dos{};
     IMAGE_NT_HEADERS64 nt{};
     IMAGE_EXPORT_DIRECTORY exports{};
@@ -88,14 +97,32 @@ int wmain(int argc, wchar_t** argv) {
                 if (std::strcmp(name, "dinotale32x9_wide_visibility_checks") == 0) {
                     wide_found = read(functions[ordinals[i]], &wide_checks, sizeof(wide_checks));
                 }
+                if (std::strcmp(name, "dinotale32x9_background_tiles") == 0) {
+                    tiles_found = read(functions[ordinals[i]], &background_tiles, sizeof(background_tiles));
+                }
+                if (std::strcmp(name, "dinotale32x9_background_masks_cleared") == 0) {
+                    masks_found = read(functions[ordinals[i]], &masks_cleared, sizeof(masks_cleared));
+                }
+                if (std::strcmp(name, "dinotale32x9_camera_steps") == 0) {
+                    camera_found = read(functions[ordinals[i]], &camera_steps, sizeof(camera_steps));
+                }
+                if (std::strcmp(name, "dinotale32x9_eased_camera_steps") == 0) {
+                    eased_camera_found = read(functions[ordinals[i]], &eased_camera_steps, sizeof(eased_camera_steps));
+                }
             }
         }
     }
-    if (!checks_found || !wide_found) { good = false; }
+    if (!checks_found || !wide_found || !tiles_found || !masks_found || !camera_found || !eased_camera_found) { good = false; }
     CloseHandle(process);
-    if (good) { std::puts("Official host loaded companion DLL; five patches and both placement visibility hooks verified"); }
+    if (good) { std::puts("Official host loaded companion DLL; five patches and all five placement/background/camera hooks verified"); }
     if (checks_found && wide_found) {
         std::printf("Placement checks: %llu; expanded-coordinate checks: %llu\n", static_cast<unsigned long long>(visibility_checks), static_cast<unsigned long long>(wide_checks));
+    }
+    if (tiles_found && masks_found) {
+        std::printf("Extended background tiles: %llu; qualified masks cleared: %llu\n", static_cast<unsigned long long>(background_tiles), static_cast<unsigned long long>(masks_cleared));
+    }
+    if (camera_found && eased_camera_found) {
+        std::printf("Normal camera steps: %llu; eased camera steps: %llu\n", static_cast<unsigned long long>(camera_steps), static_cast<unsigned long long>(eased_camera_steps));
     }
     return good ? 0 : 1;
 }

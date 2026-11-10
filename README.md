@@ -2,7 +2,7 @@
 
 ## Current release: installable 32:9 mod
 
-[Download v0.2.2](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
+[Download v0.2.3](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
 for the **official Windows DinoTale 0.1.8**. Copy both
 `DinoTale-32x9.nrm` and `DinoTale32x9.dll` into
 `%LOCALAPPDATA%\dinotale\mods` (or the portable game's `mods` folder),
@@ -19,6 +19,16 @@ Version 0.2.1 fixes the missing rectangular platform and wave tiles in
 Cloud Cruising by correcting an undersized tile-request pool allocation.
 Version 0.2.2 extends the common enemy/item placement and retention checks
 to the expanded view, so placed objects load before entering its edges.
+Version 0.2.3 tiles repeating decorative backdrops backward into the exposed
+left edge. The rule applies across levels to collision-free layers with a
+proven repeated chunk pattern or authored repeat, using the shortest visual
+period to align the seam. The backdrop fill changes only negative-X tiles and
+preserves vertical guards, foreground terrain and Original mode.
+Transparent foreground edges reveal the filled backdrop after scrolling,
+and normal horizontal camera follow eases movement before the game's wall
+checks. Initialization and scripted camera paths retain their behavior.
+The user confirmed that the background stays visible after scrolling and
+the camera moves more smoothly. Complete level-by-level testing is not claimed.
 
 ## Earlier custom build
 

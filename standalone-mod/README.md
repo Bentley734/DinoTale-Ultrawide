@@ -1,15 +1,24 @@
-# DinoTale 32:9 — installable mod v0.2.2
+# DinoTale 32:9 — installable mod v0.2.3
 
 True 32:9 Expand gameplay in the **official Windows DinoTale 0.1.8**.
 The package contains a normal `.nrm` mod and a companion native DLL.
 It uses DinoTale's own mod loader and does not replace or edit `DinoTale.exe`.
 This mod is dedicated solely to 32:9 support.
 
-Version 0.2.2 expands the shared placement checks so standard enemies,
-items and other placed objects load around the wider view's edges and
-remain active across it. It preserves actor margins, vertical limits and
-respawn rules. Individual scripted and proximity-based events keep their
-original rules.
+Version 0.2.3 extends repeating decorative backdrops into the exposed left
+edge of the 32:9 view. It works across levels by recognizing a repeated
+chunk pattern or the layer's authored repeat flag. The shortest proven
+visual period keeps the added tiles aligned with the original scenery.
+Only collision-free decorative layers qualify; foreground terrain and
+vertical boundaries keep their original behavior.
+
+Transparent foreground edges reveal the extended backdrop after scrolling,
+and normal horizontal camera follow eases into movement and stops. The
+game's wall checks still limit camera motion.
+
+The earlier fixes remain: wider enemy/item placement and retention checks,
+plus the correction for missing rectangular background tiles. Individual
+scripted and proximity-based events keep their original rules.
 
 ## Install
 
@@ -46,19 +55,36 @@ unchanged.
 
 Two checked native hooks adapt the common placement and retention
 predicates using DinoTale's existing mode-aware screen mapping. Their
-coordinate inputs are restored after each call. Camera width, world
-positions, drawing and positional audio remain unchanged. Original mode
+coordinate inputs are restored after each call. Camera width, actor world
+positions and positional audio remain unchanged. Original mode
 uses its original bounds.
+
+Additional checked hooks fill negative-X background tile requests and
+suppress the left-edge black mask for eligible repeating backdrops. They
+also inspect the actual foreground strip in CI8, IA8 and I8 layers: when
+that strip is transparent, it reveals the filled sky beneath it. The mask
+decision is made before publication to the render thread, avoiding a race
+between publishing a black cover and clearing it. Positive-X tiles,
+vertical guards, foreground/collision data and Original mode remain intact.
+Decorative layers without a proven pattern or authored repeat retain their
+existing boundary.
+
+Horizontal velocity easing runs only in normal Expand camera follow,
+before the game's original wall probe. Camera/player changes, teleports,
+long update gaps and leaving Expand reset the easing state. A checked
+native caller gate preserves initialization and scripted camera paths.
+Vertical camera movement keeps its original behavior.
 
 Version 0.2.1 corrects an original allocation threshold that treated the
 104-byte request pool as if it held 104 two-byte tile IDs. At 32:9, 54/55-ID
 requests overwrote adjacent requests and caused missing rectangular tiles.
 Requests larger than 52 IDs now use the game's existing heap path.
 
-Expand is experimental. Menus retain their original framing, and scenery
-ends where the original level art ends. Existing upstream object-visibility
-limitations remain. Choose fullscreen/32:9 before entering a level; after
-widening the window, leave and re-enter the level. This mod retains the
+Expand is experimental. Menus retain their original framing. The backdrop
+extension reuses existing decorative art and does not add playable terrain.
+Existing upstream object-visibility limitations remain. Choose
+fullscreen/32:9 before entering a level. After widening the window, leave
+and re-enter the level. This mod retains the
 official build's HUD options and resize behavior.
 
 ## Validation
@@ -81,8 +107,23 @@ official build's HUD options and resize behavior.
   the running official game.
 - Live counters confirmed the expanded checks ran during gameplay, and
   the user confirmed enemies/items now appear across the wider view.
+- Background regression coverage checks repeated-pattern detection,
+  aligned negative-X tile filling, preserved positive-X entries, vertical
+  rejection and exclusion of collision layers.
+- RT-to-background lookup tests cover fresh level associations, invalid
+  pointers and the bounded five-slot background list.
+- Transparent-strip tests cover CI8, IA8 and I8, opaque rejection and mask
+  suppression before publication.
+- Camera tests verify eased starts, stops and reversals, full running
+  speed, wall-clamp ordering, reset conditions and the game's millipixel
+  rounding. The complete native test suite passed.
+- Verified all five hooks in regular official DinoTale. Live counters
+  confirmed backdrop filling, mask suppression and camera easing ran.
+- The user confirmed the background stays visible after scrolling and
+  the camera moves more smoothly with the final 0.2.3 package installed.
 
-Full level coverage at 32:9 is not claimed.
+The shared fixes apply across levels. Complete level-by-level playtesting
+at 32:9 is not claimed.
 
 ## Source and build
 

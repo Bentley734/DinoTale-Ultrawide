@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstring>
 #include <span>
+#include <utility>
 
 namespace dinotale32x9 {
 inline constexpr uint64_t supported_file_size = 19233280;
@@ -38,6 +39,33 @@ inline constexpr std::array<uint8_t, 18> visibility_prologue{
 };
 inline constexpr uint32_t screen_x_mapper_rva = 0x20880;
 inline constexpr std::array<uint8_t, 7> screen_x_mapper_prologue{0x56,0x48,0x83,0xEC,0x20,0x89,0xCE};
+inline constexpr uint32_t background_copy_rva = 0x1B4120;
+inline constexpr std::array<uint8_t,16> background_copy_prologue{
+    0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x56,0x57,0x55,0x53,0x48,0x83,0xEC,0x48
+};
+inline constexpr uint32_t background_cover_rva = 0x20900;
+inline constexpr std::array<uint8_t,15> background_cover_prologue{
+    0x56,0x57,0x53,0x48,0x83,0xEC,0x20,0x44,0x89,0xC6,0x89,0xD3,0x48,0x89,0xCF
+};
+inline constexpr uint32_t camera_wall_rva = 0xEC3C0;
+inline constexpr uint32_t camera_follow_return_rva = 0xEE48B;
+inline constexpr std::array<uint8_t,18> camera_wall_prologue{
+    0x41,0x57,0x41,0x56,0x41,0x54,0x56,0x57,0x53,0x48,0x83,0xEC,0x38,0x0F,0x29,0x74,0x24,0x20
+};
+
+inline bool camera_guards_match(std::span<const uint8_t> image) {
+    return camera_wall_rva <= image.size() && camera_wall_prologue.size() <= image.size()-camera_wall_rva
+        && std::memcmp(image.data()+camera_wall_rva,camera_wall_prologue.data(),camera_wall_prologue.size()) == 0;
+}
+
+inline bool background_guards_match(std::span<const uint8_t> image) {
+    for (const auto [rva, bytes] : std::array<std::pair<uint32_t,std::span<const uint8_t>>,2>{{
+            {background_copy_rva, background_copy_prologue}, {background_cover_rva, background_cover_prologue}}}) {
+        if (rva > image.size() || bytes.size() > image.size()-rva
+                || std::memcmp(image.data()+rva, bytes.data(), bytes.size()) != 0) { return false; }
+    }
+    return true;
+}
 
 inline bool visibility_guards_match(std::span<const uint8_t> image) {
     if (screen_x_mapper_rva > image.size() || screen_x_mapper_prologue.size() > image.size() - screen_x_mapper_rva
@@ -49,16 +77,20 @@ inline bool visibility_guards_match(std::span<const uint8_t> image) {
     return true;
 }
 
-inline Patch make_visibility_jump(uint32_t rva, uintptr_t destination) {
+inline Patch make_function_jump(uint32_t rva, std::span<const uint8_t> prologue, uintptr_t destination) {
     Patch hook{};
     hook.rva = rva;
-    hook.size = visibility_prologue.size();
-    std::memcpy(hook.original.data(), visibility_prologue.data(), hook.size);
+    hook.size = prologue.size();
+    std::memcpy(hook.original.data(), prologue.data(), hook.size);
     hook.replacement.fill(0x90);
     const uint8_t instruction[]{0xFF,0x25,0,0,0,0};
     std::memcpy(hook.replacement.data(), instruction, sizeof(instruction));
     std::memcpy(hook.replacement.data()+6, &destination, sizeof(destination));
     return hook;
+}
+
+inline Patch make_visibility_jump(uint32_t rva, uintptr_t destination) {
+    return make_function_jump(rva, visibility_prologue, destination);
 }
 
 inline uint64_t hash_bytes(std::span<const uint8_t> bytes, uint64_t hash = 14695981039346656037ULL) {
