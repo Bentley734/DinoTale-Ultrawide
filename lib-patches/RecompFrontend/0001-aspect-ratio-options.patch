@@ -59,7 +59,7 @@ index 4fdf81f..9703ca4 100644
 +                "Sets the horizontal aspect ratio. <recomp-color primary>Original</recomp-color> uses the game's original 4:3 aspect ratio. "
 +                "<recomp-color primary>Stretch</recomp-color> stretches the original picture to fill the window. "
 +                "<recomp-color primary>Hybrid</recomp-color> (experimental) stretches the backgrounds to fill the window and keeps the sprites' shape; objects only show in the middle 4:3 area, so the sides are dimmed. "
-+                "<recomp-color primary>Expand</recomp-color> (experimental) shows more of each level.";
++                "<recomp-color primary>Expand</recomp-color> (experimental) shows more of each level, up to 32:9. Choose the window size before entering a level; restart the level after widening it to fill the larger view.";
 +            if (!expand_available) {
 +                text +=
 +                    "<br />"

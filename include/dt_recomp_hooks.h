@@ -35,5 +35,11 @@ int32_t dinotale_screen_left_test(uint8_t* rdram, uint32_t actor, int32_t value)
 int32_t dinotale_screen_right_test(int32_t value);
 int32_t dinotale_actor_screen_x(int32_t x);
 void dinotale_bg_view_freed(uint8_t* rdram, uint32_t layer);
+void dinotale_reset_widescreen(void);
+
+// src/game/bg_arena.cpp
+void dinotale_bg_arena_allocate(uint8_t* rdram, recomp_context* ctx);
+void dinotale_bg_arena_release_view(uint8_t* rdram, uint32_t view);
+void dinotale_bg_arena_reset(void);
 
 #endif // DT_RECOMP_HOOKS_H

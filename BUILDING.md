@@ -1,5 +1,17 @@
 # Building Guide
 
+For this fork, Windows can also use a separate `clang-cl.exe` installation:
+
+```powershell
+.\tools\setup-windows.ps1 -Rom "C:\path\to\your game.z64" -ClangCl "C:\LLVM\bin\clang-cl.exe"
+.\tools\test-ultrawide.ps1 -ClangCl "C:\LLVM\bin\clang-cl.exe"
+.\tools\package-windows.ps1 -ClangCl "C:\LLVM\bin\clang-cl.exe"
+```
+
+The tests cover aspect limits, tile-column rounding, zoomed layers, window
+resizing, HUD placement, and background-memory allocation and reuse. They
+complement visual gameplay checks; they do not prove all levels work at 32:9.
+
 ## Quick start: Windows with Visual Studio 2022
 
 Needs Visual Studio 2022 with the "Desktop development with C++" workload

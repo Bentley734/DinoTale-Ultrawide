@@ -24,6 +24,7 @@
 param(
     [string]$Rom = "",
     [string]$Icon = "",
+    [string]$ClangCl = "",
     [switch]$NoBuild
 )
 
@@ -50,8 +51,10 @@ if ($env:VSCMD_ARG_TGT_ARCH -ne "x64") {
     & (Join-Path $vsPath "Common7\Tools\Launch-VsDevShell.ps1") -Arch amd64 -HostArch amd64 -SkipAutomaticLocation | Out-Null
     Set-Location $root
 }
-$llvmBin = Join-Path $vsPath "VC\Tools\Llvm\x64\bin"
-$clangCl = Join-Path $llvmBin "clang-cl.exe"
+if (-not $ClangCl) {
+    $ClangCl = Join-Path $vsPath "VC\Tools\Llvm\x64\bin\clang-cl.exe"
+}
+$llvmBin = Split-Path $ClangCl -Parent
 if (-not (Test-Path $clangCl)) {
     throw ("clang-cl not found at $clangCl -- in the Visual Studio Installer, Modify this install ($vsPath) and, " +
         "under Individual components, tick 'C++ Clang Compiler for Windows' and 'MSBuild support for LLVM (clang-cl) toolset' (BUILDING.md).")
@@ -159,7 +162,7 @@ if ($LASTEXITCODE -ne 0) { throw "N64Recomp failed." }
 
 # --- 4. Configure and build ------------------------------------------------------
 Step "DinoTale"
-cmake --preset windows-release
+cmake --preset windows-release "-DCMAKE_C_COMPILER=$ClangCl" "-DCMAKE_CXX_COMPILER=$ClangCl"
 if ($LASTEXITCODE -ne 0) { throw "Configuring DinoTale failed." }
 if (-not $NoBuild) {
     cmake --build --preset windows-release

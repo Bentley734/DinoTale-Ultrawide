@@ -18,22 +18,24 @@
 #include "ultramodern/config.hpp"
 #include "recompui/config.h"
 #include "recomp.h"
+#include "viewport_math.hpp"
 
 // src/main/main.cpp
 extern SDL_Window* window;
 
+// RT64's view must never expose columns beyond this level's allocation.
+extern "C" void rt64_dinotale_set_expand_aspect_limit(float aspect);
+
 namespace {
     // The game's view is 320 pixels wide for a 4:3, 240-line screen.
-    constexpr int32_t original_view_width = 320;
-    constexpr double original_aspect = 4.0 / 3.0;
-    // Widest view for now: 16:9. Each background layer's ring buffer is
-    // (view width + 16) x 256 bytes on the game's heap.
-    constexpr double max_aspect = 16.0 / 9.0;
+    constexpr int32_t original_view_width = dinotale::viewport::original_width;
 
     // Background layers currently alive, and the view width the level that
     // created them uses. All touched on the game thread only.
     int live_bg_views = 0;
     int32_t level_view_width = original_view_width;
+    uint32_t fruit_frame = 0;
+    float fruit_frame_x[30];
 
     // When a background layer was last created or drawn (SDL ticks). A level
     // draws its layers every frame, paused or not, so if a new layer is
@@ -53,7 +55,7 @@ namespace {
             SDL_GetWindowSize(window, &w, &h);
         }
         if ((w <= 0) || (h <= 0)) {
-            return max_aspect;
+            return dinotale::viewport::fallback_aspect;
         }
         return double(w) / double(h);
     }
@@ -64,11 +66,7 @@ namespace {
             return original_view_width;
         }
 
-        const double aspect = std::clamp(window_aspect(), original_aspect, max_aspect);
-        // Whole 16-pixel tile columns, so the view stays centred on the
-        // original one with the same number of pixels on each side.
-        const int32_t wide = int32_t(std::ceil(original_view_width * aspect / original_aspect / 16.0)) * 16;
-        return std::max(wide, original_view_width);
+        return dinotale::viewport::width_for_aspect(window_aspect());
     }
 
     // The view width in effect: the running level's. Outside a level
@@ -83,17 +81,29 @@ namespace {
     // the level starts), but the HUD and the camera go back to the 4:3 screen
     // at once, so nothing ends up outside it.
     int32_t active_view_width() {
-        return expand_enabled() ? current_view_width() : original_view_width;
+        return expand_enabled()
+            ? dinotale::viewport::visible_width(current_view_width(), window_aspect())
+            : original_view_width;
     }
 
     // The width the HUD is laid out for: as above, but kept to the middle 4:3
-    // part of the screen when HUD Placement is Original. (The view is at most
-    // 16:9, so the 16:9 and Expand placements are the same.)
+    // part of the screen when HUD Placement is Original, or the middle 16:9
+    // area with that placement. Expand follows the full visible view.
     int32_t hud_view_width() {
-        if (ultramodern::renderer::get_graphics_config().hr_option == ultramodern::renderer::HUDRatioMode::Original) {
-            return original_view_width;
+        using ultramodern::renderer::HUDRatioMode;
+        using dinotale::viewport::HudPlacement;
+        HudPlacement placement = HudPlacement::Expand;
+        switch (ultramodern::renderer::get_graphics_config().hr_option) {
+        case HUDRatioMode::Original:
+            placement = HudPlacement::Original;
+            break;
+        case HUDRatioMode::Clamp16x9:
+            placement = HudPlacement::Clamp16x9;
+            break;
+        default:
+            break;
         }
-        return active_view_width();
+        return dinotale::viewport::hud_width(active_view_width(), placement);
     }
 
     void update_expand_available() {
@@ -101,21 +111,31 @@ namespace {
         // was started with it (switching away and back is fine then).
         const bool available = (live_bg_views == 0) || (level_view_width != original_view_width);
         recompui::config::graphics::set_expand_available(available);
+        rt64_dinotale_set_expand_aspect_limit(dinotale::viewport::render_aspect_limit(current_view_width()));
     }
 
     // A layer's view width scaled from the 320-wide screen to the level's view
     // width, rounded up to whole 16-pixel tile columns.
     int32_t scale_to_level(int32_t width) {
-        const int32_t scaled = (width * level_view_width + original_view_width * 16 - 1) / (original_view_width * 16);
-        return std::max(scaled * 16, width);
+        return dinotale::viewport::scale_layer_width(width, level_view_width);
     }
 
-        uint32_t float_bits(float value) {
+    uint32_t float_bits(float value) {
         uint32_t bits;
         static_assert(sizeof(bits) == sizeof(value));
         std::memcpy(&bits, &value, sizeof(bits));
         return bits;
     }
+}
+
+// The game's heap is recreated on boot/reset. No background view or saved
+// HUD pointer from the previous session remains valid after that point.
+extern "C" void dinotale_reset_widescreen() {
+    live_bg_views = 0;
+    level_view_width = original_view_width;
+    last_bg_ticks = 0;
+    fruit_frame = 0;
+    update_expand_available();
 }
 
 // The width of a level's view in pixels, for a background layer whose view
@@ -343,11 +363,6 @@ extern "C" void dinotale_bg_cover_outside(uint8_t* rdram, uint32_t rt, uint32_t 
 // sprites. In Expand, spread the slots across the wider screen just for that
 // call: centres move away from the middle in proportion, so the frame keeps
 // its shape around the edge of the window.
-namespace {
-    uint32_t fruit_frame = 0;
-    float fruit_frame_x[30];
-}
-
 extern "C" void dinotale_fruit_frame_begin(uint8_t* rdram, uint32_t frame) {
     fruit_frame = 0;
     const int32_t width = hud_view_width();

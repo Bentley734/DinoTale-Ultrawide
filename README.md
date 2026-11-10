@@ -1,4 +1,38 @@
-# DinoTale: Yoshi's Story Recompiled
+# DinoTale Ultrawide
+
+A dedicated **32:9** build of
+[DinoTale by wootbeer](https://github.com/wootbeer/dinotale), based on 0.1.8.
+Yoshi and the scenery keep their proportions while the game streams a wider
+view of each level. This project focuses solely on ultrawide support.
+
+Download the Windows build from
+[this fork's releases](https://github.com/Bentley734/DinoTale-Ultrawide/releases).
+
+## Ultrawide setup
+
+1. Extract the Windows ZIP into its own folder and run `DinoTale.exe`.
+2. Select your own US Yoshi's Story game file when asked.
+3. Before entering a level, set **Settings > Graphics > Aspect Ratio > Expand**
+   and use fullscreen on your ultrawide monitor.
+4. Choose **HUD Placement > 16:9** for a centered HUD, **Original** for 4:3,
+   or **Expand** for the full width.
+
+The level allocates its backgrounds when it starts. If you widen the window
+after entering a level, leave and re-enter it to use the extra width. Until
+then, the renderer limits the view to the allocated background size.
+Menus and storybook screens retain their original framing. Original,
+Stretch and Hybrid remain available.
+
+This build uses its own `dinotale-ultrawide` settings/save folder. To carry
+over progress, close both builds and copy the `saves` folder from
+`%LOCALAPPDATA%\dinotale` to `%LOCALAPPDATA%\dinotale-ultrawide`. A blank
+`portable.txt` beside the executable keeps this build's data in its folder.
+
+Expand remains experimental. The original game's art can end before the
+extra view at level boundaries; black areas there are not new scenery.
+Some upstream actor-culling issues, including 4-1's blue blocks, remain.
+
+## Upstream project
 
 Yoshi's Story (N64, 1997/98), running natively on PC. The game is statically
 recompiled with [N64Recomp](https://github.com/N64Recomp/N64Recomp), runs on
@@ -13,7 +47,7 @@ included:** you need your own copy of the game.
 
 - Runs natively on Windows and Linux.
 - **Widescreen:** play in 4:3, stretched, or true widescreen (Expand) that
-  shows more of each level, up to 16:9.
+  shows more of each level, up to 32:9 in this build.
 - HUD at the edges of the window in widescreen, or kept in its original place.
 - Screen filters: CRT, scanlines, LCD, and the xBR, xBRZ and HQ2x upscalers.
 - Keyboard and controller support with remappable controls.
@@ -35,8 +69,8 @@ in-game menu.
 
 ### Portable mode
 
-Settings, saves and mods normally go in `%LOCALAPPDATA%\dinotale` (Windows)
-or `~/.config/dinotale` (Linux). Add a blank `portable.txt` next to
+Settings, saves and mods normally go in `%LOCALAPPDATA%\dinotale-ultrawide` (Windows)
+or `~/.config/dinotale-ultrawide` (Linux). Add a blank `portable.txt` next to
 `DinoTale.exe` (or `DinoTale`) to keep them in the game's own folder instead,
 for example on a USB stick. Copy existing settings and saves over by hand.
 

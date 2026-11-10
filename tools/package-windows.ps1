@@ -12,19 +12,29 @@
 # dist\DinoTale-<version>-windows.zip. Nothing from the ROM other than the
 # recompiled code built into the exe is included.
 param(
-    [string]$Version = "0.1.8"
+    [string]$Version = "0.1.8-ultrawide.1",
+    [string]$ClangCl = "",
+    [switch]$SkipBuild
 )
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path $PSScriptRoot -Parent
 Set-Location $root
 
-& (Join-Path $PSScriptRoot "setup-windows.ps1")
+if (-not $SkipBuild) {
+    & (Join-Path $PSScriptRoot "setup-windows.ps1") -ClangCl $ClangCl
+}
 Set-Location $root
 $BuildDir = "build\windows-release"
+if (-not (Test-Path -LiteralPath (Join-Path $BuildDir "DinoTale.exe"))) { throw "Build DinoTale before packaging." }
 
 $name = "DinoTale-$Version-windows"
 $stage = Join-Path $root "dist\$name"
+if ($Version -notmatch '^[0-9A-Za-z][0-9A-Za-z.-]*$') { throw "Invalid release version." }
+$distRoot = [System.IO.Path]::GetFullPath((Join-Path $root "dist")) + [System.IO.Path]::DirectorySeparatorChar
+if (-not ([System.IO.Path]::GetFullPath($stage)).StartsWith($distRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Release staging folder must stay inside dist."
+}
 if (Test-Path $stage) { Remove-Item $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage | Out-Null
 

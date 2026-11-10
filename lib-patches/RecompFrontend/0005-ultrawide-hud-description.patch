@@ -1,0 +1,12 @@
+diff --git a/recompui/src/config/ui_config_tab_graphics.cpp b/recompui/src/config/ui_config_tab_graphics.cpp
+--- a/recompui/src/config/ui_config_tab_graphics.cpp
++++ b/recompui/src/config/ui_config_tab_graphics.cpp
+@@ -336,7 +336,7 @@
+             config.add_enum_option(
+                 graphics::options::hr_option,
+                 "HUD Placement",
+-                "Adjusts the placement of HUD elements to fit the selected aspect ratio. <recomp-color primary>Expand</recomp-color> will use the aspect ratio of the game's output window.",
++                "Places the fruit frame and health flower in the middle <recomp-color primary>Original</recomp-color> 4:3 area, the middle <recomp-color primary>16:9</recomp-color> area, or at the full visible view's edges with <recomp-color primary>Expand</recomp-color>.",
+                 hud_ratio_mode_options,
+                 ultramodern::renderer::HUDRatioMode::Clamp16x9
+             );

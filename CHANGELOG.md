@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.8-ultrawide.1
+
+- Expand gameplay up to 32:9, including wider background streaming, camera
+  bounds, player edge checks and existing visibility hooks.
+- Keep background ring buffers in a dedicated 4 MB expansion-memory arena
+  so the wider view does not consume the original game's heap.
+- Preserve separate Original, centered 16:9 and full-width HUD placements.
+- Limit the rendered aspect to the level's allocated background width when
+  the window is widened; reload the level to allocate a larger view.
+- Separate settings and saves under `dinotale-ultrawide`.
+- Add viewport and allocation regression checks, plus an optional portable
+  compiler path for Windows builds.
+
+
 ## Unreleased
 
 - Lossless Scaling frame generation: a Vulkan correctness fix (from

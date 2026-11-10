@@ -128,6 +128,34 @@ func = "func_800035F8"
 vram = 0x80003624
 value = 0x00000000
 
+# Widened background rings live in the unused 4 MB expansion memory, outside
+# the US game's heap (0x802078B0..0x80400000). Replace only the constructor's
+# jal into func_8004EDD8 with a nop, keep its a0=size+64 delay slot, then
+# return our allocation in v0. Other calls still run the game's allocator.
+[[patches.instruction]]
+func = "func_8004EEEC"
+vram = 0x8004EF78
+value = 0x00000000
+
+[[patches.hook]]
+func = "func_8004EEEC"
+before_vram = 0x8004EF80
+text = "dinotale_bg_arena_allocate(rdram, ctx);"
+
+# The destructor first frees the raw ring allocation at view +0x64, then
+# the view object itself. Remove an owned arena allocation before those
+# frees; a normal game-heap view/ring is left untouched.
+[[patches.hook]]
+func = "func_8004EEB8"
+before_vram = 0x8004EEB8
+text = "dinotale_bg_arena_release_view(rdram, (uint32_t)ctx->r4);"
+
+# Keep our arena's lifetime in step with the original game's heap.
+[[patches.hook]]
+func = "func_80064BAC"
+before_vram = 0x80064BAC
+text = "dinotale_bg_arena_reset(); dinotale_reset_widescreen();"
+
 # True widescreen (Expand): a level's background layers are created with the
 # view width from the level data (320). Widen it before func_8004EEEC
 # allocates each layer's ring buffer and records the view size; the streamer,

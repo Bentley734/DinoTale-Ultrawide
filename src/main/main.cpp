@@ -67,9 +67,9 @@ void dinotale_update_display_options();
 // rom_archive.cpp: the game's ROM from a .zip or .7z, or nothing.
 std::vector<uint8_t> dinotale_read_rom_archive(const std::vector<uint8_t>& file_data);
 
-static const std::string program_name = "DinoTale";
-static const std::u8string program_id = u8"dinotale";
-static const std::string version_string = "0.1.8";
+static const std::string program_name = "DinoTale Ultrawide";
+static const std::u8string program_id = u8"dinotale-ultrawide";
+static const std::string version_string = "0.1.8-ultrawide.1";
 
 template <typename... Ts>
 [[noreturn]] static void exit_error(const char* fmt, Ts... args) {
