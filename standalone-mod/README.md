@@ -1,9 +1,17 @@
-# DinoTale 32:9 — installable mod v0.2.3
+# DinoTale 32:9 — installable mod v0.2.4
 
 True 32:9 Expand gameplay in the **official Windows DinoTale 0.1.8**.
 The package contains a normal `.nrm` mod and a companion native DLL.
 It uses DinoTale's own mod loader and does not replace or edit `DinoTale.exe`.
 This mod is dedicated solely to 32:9 support.
+
+Version 0.2.4 extends walkable ground to the left edge of the wider view at
+eligible level starts. It continues the existing edge's collision profile
+and uses matching ground material. The rule applies across levels with
+static flat support at the edge; starts containing scripted or dynamic
+edge cells retain their existing boundary. Ground art fills when the level
+first loads, and static terrain contacts recognize the added ground.
+The camera keeps its original level bounds.
 
 Version 0.2.3 extends repeating decorative backdrops into the exposed left
 edge of the 32:9 view. It works across levels by recognizing a repeated
@@ -55,8 +63,8 @@ unchanged.
 
 Two checked native hooks adapt the common placement and retention
 predicates using DinoTale's existing mode-aware screen mapping. Their
-coordinate inputs are restored after each call. Camera width, actor world
-positions and positional audio remain unchanged. Original mode
+coordinate inputs are restored after each call. Camera width, existing actor
+world positions and positional audio remain unchanged. Original mode
 uses its original bounds.
 
 Additional checked hooks fill negative-X background tile requests and
@@ -68,6 +76,24 @@ between publishing a black cover and clearing it. Positive-X tiles,
 vertical guards, foreground/collision data and Original mode remain intact.
 Decorative layers without a proven pattern or authored repeat retain their
 existing boundary.
+
+The ground continuation is limited to a finite strip outside the authored
+left edge, calculated from the extra visible width and the player's
+projection scale, with room for collision probes. Its material motif uses
+only columns whose complete collision profiles equal the existing edge.
+Collision queries repeat that edge profile, while positive-X terrain,
+interior pits, slopes and vertical guards keep their authored values.
+The left-edge crossing test and position correction use the expanded
+limit together, and point-validity queries recognize the same finite strip.
+Right edges, void starts and Original mode keep their existing behavior.
+
+Initial ground tile requests use their own layer descriptor and bounded
+fill, independently of player/camera association. Static point-contact
+readers map negative-X samples in the eligible strip to the existing edge,
+then restore the input coordinate. Scripted/dynamic edge rejection keeps
+this path away from collision writes and actor-spawn behavior. Native
+caller checks exclude recursive, horizontal and vertical camera probes,
+preserving their original boundary checks.
 
 Horizontal velocity easing runs only in normal Expand camera follow,
 before the game's original wall probe. Camera/player changes, teleports,
@@ -81,7 +107,8 @@ requests overwrote adjacent requests and caused missing rectangular tiles.
 Requests larger than 52 IDs now use the game's existing heap path.
 
 Expand is experimental. Menus retain their original framing. The backdrop
-extension reuses existing decorative art and does not add playable terrain.
+and ground continuations reuse existing art; ground eligibility is checked
+from the current level's collision data.
 Existing upstream object-visibility limitations remain. Choose
 fullscreen/32:9 before entering a level. After widening the window, leave
 and re-enter the level. This mod retains the
@@ -121,9 +148,22 @@ official build's HUD options and resize behavior.
   confirmed backdrop filling, mask suppression and camera easing ran.
 - The user confirmed the background stays visible after scrolling and
   the camera moves more smoothly with the final 0.2.3 package installed.
+- Ground collision regressions cover the finite extension, constant edge
+  profile, preserved interior pits/slopes, vertical rejection, inclusive
+  stop values, invalid pointers and source/output alias rejection.
+- Ground material and runtime checks cover collision-equivalent motif
+  columns, scripted/dynamic edge rejection, projection-scaled bounds and
+  Original mode.
+- Verified all 15 native hooks in regular official DinoTale, with live
+  ground filling and collision-query counters active during gameplay.
+- Independent pixel comparison matched all 207,360 foreground pixels in
+  Cloud Cruising, including the added ground. Yoshi reached negative world
+  X at the original ground height.
+- The user confirmed the ground reaches the left edge and Yoshi can walk
+  and stand on it without falling.
 
-The shared fixes apply across levels. Complete level-by-level playtesting
-at 32:9 is not claimed.
+The shared fixes apply across eligible levels; complete level-by-level
+playtesting at 32:9 is not claimed.
 
 ## Source and build
 

@@ -2,7 +2,7 @@
 
 ## Current release: installable 32:9 mod
 
-[Download v0.2.3](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
+[Download v0.2.4](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
 for the **official Windows DinoTale 0.1.8**. Copy both
 `DinoTale-32x9.nrm` and `DinoTale32x9.dll` into
 `%LOCALAPPDATA%\dinotale\mods` (or the portable game's `mods` folder),
@@ -29,6 +29,17 @@ and normal horizontal camera follow eases movement before the game's wall
 checks. Initialization and scripted camera paths retain their behavior.
 The user confirmed that the background stays visible after scrolling and
 the camera moves more smoothly. Complete level-by-level testing is not claimed.
+
+Version 0.2.4 continues walkable ground to the left edge of the 32:9 view
+at eligible level starts. It uses the existing static edge collision
+profile and matching material from collision-equivalent columns, within
+a finite margin adjusted for the player's projection scale. Ground art
+fills during the initial level load, and static terrain contacts recognize
+the added strip. Interior pits, vertical guards, right edges, void starts
+and Original mode retain their behavior. Scripted/dynamic edge cells are
+excluded, and camera probes retain the original level bounds. All 15 native
+hooks were verified in regular DinoTale. The user confirmed the ground reaches
+the left edge and Yoshi can walk and stand on it. Full level testing is not claimed.
 
 ## Earlier custom build
 

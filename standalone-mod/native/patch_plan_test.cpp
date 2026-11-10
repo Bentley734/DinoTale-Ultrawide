@@ -35,6 +35,24 @@ int main() {
     image[camera_wall_rva+17] ^= 1;
     assert(!camera_guards_match(image));
     image[camera_wall_rva+17] ^= 1;
+    assert(!ground_guards_match(image));
+    assert(!ground_contact_is_camera_probe(0xEBFDF));
+    assert(ground_contact_is_camera_probe(0xEBFE0));
+    assert(ground_contact_is_camera_probe(0xEC3C0));
+    assert(ground_contact_is_camera_probe(0xED220));
+    assert(!ground_contact_is_camera_probe(0xEDFE0));
+    assert(!ground_contact_is_camera_probe(0x16D120));
+    for (size_t i=0;i<ground_rvas.size();++i) {
+        std::memcpy(image.data()+ground_rvas[i],ground_prologues[i].data(),ground_prologues[i].size());
+    }
+    assert(ground_guards_match(image));
+    for (size_t i=0;i<ground_rvas.size();++i) {
+        image[ground_rvas[i]] ^= 1;
+        assert(!ground_guards_match(image));
+        image[ground_rvas[i]] ^= 1;
+        const auto ground_jump=make_function_jump(ground_rvas[i],ground_prologues[i],0x12345678);
+        assert(ground_jump.size+14<=64);
+    }
     std::memcpy(image.data()+background_copy_rva, background_copy_prologue.data(), background_copy_prologue.size());
     std::memcpy(image.data()+background_cover_rva, background_cover_prologue.data(), background_cover_prologue.size());
     assert(background_guards_match(image));

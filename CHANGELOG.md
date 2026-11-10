@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.2.4 — walkable ground at wider level starts
+
+- Continue ground into the added left margin at eligible level starts in
+  Expand. Require existing static flat support and exclude scripted or
+  dynamic edge cells.
+- Repeat the existing edge collision profile and choose ground material
+  only from columns with identical complete collision profiles. Keep
+  authored positive-X terrain, interior pits/slopes and vertical guards.
+- Fill bounded initial ground tile requests from their own layer data,
+  independently of player/camera association, so the added art appears
+  during level loading.
+- Bound the extension using the extra visible width and player projection
+  scale. Update the left-edge crossing test, position correction and
+  point-validity queries together. Right edges, void starts and Original
+  mode retain their existing behavior.
+- Extend static terrain point contacts through the same eligible strip,
+  preserving material filtering and restoring input coordinates. Exclude
+  recursive, horizontal and vertical camera probes from this mapping so
+  their original level bounds remain in force.
+- Add ground collision, material and runtime regressions covering finite
+  bounds, stop values, malformed pointers, aliases and eligibility rules.
+- Retain 0.2.3's repeating backdrops, transparent foreground edges and
+  camera easing, plus all earlier placement and tile-allocation fixes.
+- Verified all 15 native hooks during regular DinoTale gameplay and matched
+  the foreground ring pixel-for-pixel with the expected extended terrain.
+  The user confirmed the ground reaches the left edge and Yoshi can walk
+  and stand on it. Complete level-by-level playtesting is not claimed.
+
 ## 0.2.3 — repeating backdrops and smoother camera follow
 
 - Extend decorative backdrops backward into the exposed left edge of the

@@ -9,6 +9,7 @@
 #include "background_lookup.hpp"
 #include "background_cover.hpp"
 #include "camera_smoothing.hpp"
+#include "ground_runtime.hpp"
 #include "recomp.h"
 
 extern "C" {
@@ -20,6 +21,8 @@ __declspec(dllexport) uint64_t dinotale32x9_background_tiles = 0;
 __declspec(dllexport) uint64_t dinotale32x9_background_masks_cleared = 0;
 __declspec(dllexport) uint64_t dinotale32x9_camera_steps = 0;
 __declspec(dllexport) uint64_t dinotale32x9_eased_camera_steps = 0;
+__declspec(dllexport) uint64_t dinotale32x9_ground_tiles = 0;
+__declspec(dllexport) uint64_t dinotale32x9_ground_queries = 0;
 }
 
 namespace {
@@ -36,10 +39,15 @@ struct VisibilityHook {
 };
 std::array<VisibilityHook, 2> visibility_hooks{};
 std::array<VisibilityHook, 3> background_hooks{};
+std::array<VisibilityHook, 10> ground_hooks{};
 using CoverFunction = void (*)(uint8_t*, uint32_t, uint32_t);
 dinotale32x9::HorizontalCameraSmoother camera_smoother;
 
 bool expanded_view_active() { return screen_x_mapper(-1048576) != -1048576; }
+dinotale32x9::GroundRuntimeState ground_state(uint8_t* rdram) {
+    const int32_t extra = screen_x_mapper(-1048576)+1048576;
+    return dinotale32x9::read_ground_runtime({rdram,0x800000},extra);
+}
 
 void copy_background_tiles(uint8_t* rdram, recomp_context* ctx) {
     const uint32_t stack = uint32_t(ctx->r29);
@@ -58,6 +66,11 @@ void copy_background_tiles(uint8_t* rdram, recomp_context* ctx) {
     if (capture && request.start_x<0 && expanded_view_active()) {
         const auto result = dinotale32x9::fill_negative_background_tiles({rdram,0x800000}, request);
         dinotale32x9_background_tiles += result.entries_written;
+        // Initial refills precede the active foreground/player association.
+        // Qualify the descriptor in this already bounded request directly;
+        // active-world gates still govern collision and player limits.
+        dinotale32x9_ground_tiles += dinotale32x9::fill_negative_ground_tiles({rdram,0x800000},request,
+            std::max(request.start_x,-2047)).entries_written;
     }
 }
 
@@ -73,6 +86,10 @@ void cover_background(uint8_t* rdram, uint32_t rt, uint32_t object) {
             if (format >= 2 && format <= 4 && rdram[(at+9)^3U] == 1) {
                 inhibit = dinotale32x9::inspect_background_repeat(memory, background).eligible
                     || dinotale32x9::background_left_strip_transparent(memory,rt,object);
+                if (!inhibit) {
+                    const auto ground = ground_state(rdram);
+                    inhibit = ground.eligible() && ground.background == background;
+                }
             }
         }
     }
@@ -82,6 +99,77 @@ void cover_background(uint8_t* rdram, uint32_t rt, uint32_t object) {
         reinterpret_cast<CoverFunction>(background_hooks[1].trampoline)(rdram,rt,object);
     });
     if (inhibit) { ++dinotale32x9_background_masks_cleared; }
+}
+
+using BoundaryFunction = uint32_t (*)(uint8_t*,uint32_t,int32_t);
+uint32_t ground_left_test(uint8_t* rdram, uint32_t actor, int32_t value) {
+    const uint32_t original = reinterpret_cast<BoundaryFunction>(ground_hooks[0].trampoline)(rdram,actor,value);
+    const auto ground = ground_state(rdram);
+    return ground.eligible() ? uint32_t(value)+uint32_t(ground.extra_screen_pixels) : original;
+}
+uint32_t ground_margin(uint8_t* rdram, uint32_t actor, int32_t side) {
+    const uint32_t original = reinterpret_cast<BoundaryFunction>(ground_hooks[1].trampoline)(rdram,actor,side);
+    if (side >= 0) { return original; }
+    const auto ground = ground_state(rdram);
+    return ground.eligible() ? std::bit_cast<uint32_t>(-144.0f-float(ground.extra_screen_pixels)) : original;
+}
+
+void ground_collision(size_t index, uint8_t* rdram, recomp_context* ctx) {
+    using dinotale32x9::GroundCollisionQuery;
+    const bool scalar = index == 2;
+    const int32_t x = int16_t(scalar ? ctx->r4 : ctx->r5);
+    dinotale32x9::GroundCollisionRequest request{GroundCollisionQuery::scalar,0,x,
+        int16_t(scalar ? ctx->r5 : ctx->r6),1,1,0};
+    bool captured = scalar;
+    if (!scalar && x<0) {
+        const uint32_t stack = uint32_t(ctx->r29);
+        uint32_t at = 0;
+        if ((stack&3U) == 0 && dinotale32x9::background_cover_detail::range(stack,0x14,0x800000,at)) {
+            const uint32_t argument = dinotale32x9::background_cover_detail::word({rdram,0x800000},at+0x10);
+            request.output = uint32_t(ctx->r4);
+            request.stop_attribute = uint16_t(argument);
+            if (index == 3) { request.kind=GroundCollisionQuery::horizontal; request.columns=int32_t(ctx->r7); }
+            if (index == 4) { request.kind=GroundCollisionQuery::vertical; request.rows=int32_t(ctx->r7); }
+            if (index == 5) { request.kind=GroundCollisionQuery::rectangle; request.columns=int32_t(ctx->r7); request.rows=int32_t(argument); }
+            captured = true;
+        }
+    }
+    ground_hooks[index].original(rdram,ctx);
+    if (x>=0 || !captured) { return; }
+    const auto ground = ground_state(rdram);
+    if (!ground.eligible()) { return; }
+    const auto result = dinotale32x9::extend_ground_collision({rdram,0x800000},ground.collision,request,ground.minimum_tile_x);
+    if (result.handled) { ctx->r2=result.return_value; ++dinotale32x9_ground_queries; }
+}
+void ground_scalar(uint8_t* rdram,recomp_context* ctx) { ground_collision(2,rdram,ctx); }
+void ground_horizontal(uint8_t* rdram,recomp_context* ctx) { ground_collision(3,rdram,ctx); }
+void ground_vertical(uint8_t* rdram,recomp_context* ctx) { ground_collision(4,rdram,ctx); }
+void ground_rectangle(uint8_t* rdram,recomp_context* ctx) { ground_collision(5,rdram,ctx); }
+
+void ground_world_query(size_t index,uint8_t* rdram,recomp_context* ctx) {
+    const uint32_t x_bits=ctx->f12.u32l;
+    const float x=std::bit_cast<float>(x_bits);
+    bool mapped=false;
+    if (std::isfinite(x) && x<0) {
+        const auto ground=ground_state(rdram);
+        mapped=ground.eligible() && double(x)>=double(ground.minimum_tile_x)*16.0;
+    }
+    if (mapped) { ctx->f12.fl=0; }
+    ground_hooks[index].original(rdram,ctx);
+    if (mapped) { ctx->f12.u32l=x_bits; ++dinotale32x9_ground_queries; }
+}
+void ground_validity(uint8_t* rdram,recomp_context* ctx) { ground_world_query(6,rdram,ctx); }
+void ground_room(uint8_t* rdram,recomp_context* ctx) { ground_world_query(7,rdram,ctx); }
+void ground_contact(uint8_t* rdram,recomp_context* ctx) { ground_world_query(8,rdram,ctx); }
+__declspec(noinline) void ground_plain_contact(uint8_t* rdram,recomp_context* ctx) {
+    const uintptr_t caller=reinterpret_cast<uintptr_t>(_ReturnAddress());
+    const uintptr_t base=reinterpret_cast<uintptr_t>(host_image);
+    if (caller>=base && caller-base<=UINT32_MAX
+        && dinotale32x9::ground_contact_is_camera_probe(uint32_t(caller-base))) {
+        ground_hooks[9].original(rdram,ctx);
+        return;
+    }
+    ground_world_query(9,rdram,ctx);
 }
 
 __declspec(noinline) void ease_camera(uint8_t* rdram, recomp_context* ctx) {
@@ -131,7 +219,7 @@ void outer_visibility(uint8_t* rdram, recomp_context* ctx) { run_visibility(0, r
 void inner_visibility(uint8_t* rdram, recomp_context* ctx) { run_visibility(1, rdram, ctx); }
 
 void free_visibility_trampolines() {
-    for (auto hooks : {std::span<VisibilityHook>{visibility_hooks},std::span<VisibilityHook>{background_hooks}}) {
+    for (auto hooks : {std::span<VisibilityHook>{visibility_hooks},std::span<VisibilityHook>{background_hooks},std::span<VisibilityHook>{ground_hooks}}) {
         for (auto& hook : hooks) {
             if (hook.trampoline) { VirtualFree(hook.trampoline, 0, MEM_RELEASE); }
             hook.trampoline = nullptr;
@@ -179,6 +267,28 @@ bool prepare_visibility_hooks() {
         if (!VirtualProtect(code,32,PAGE_EXECUTE_READ,&unused)) { free_visibility_trampolines(); return false; }
         FlushInstructionCache(GetCurrentProcess(),code,32);
         hook.original = reinterpret_cast<Predicate>(hook.trampoline);
+    }
+    const std::array<uintptr_t,10> ground_replacements{
+        reinterpret_cast<uintptr_t>(&ground_left_test),reinterpret_cast<uintptr_t>(&ground_margin),
+        reinterpret_cast<uintptr_t>(&ground_scalar),reinterpret_cast<uintptr_t>(&ground_horizontal),
+        reinterpret_cast<uintptr_t>(&ground_vertical),reinterpret_cast<uintptr_t>(&ground_rectangle),
+        reinterpret_cast<uintptr_t>(&ground_validity),reinterpret_cast<uintptr_t>(&ground_room),
+        reinterpret_cast<uintptr_t>(&ground_contact),reinterpret_cast<uintptr_t>(&ground_plain_contact)
+    };
+    for (size_t i=0; i<ground_hooks.size(); ++i) {
+        auto& hook=ground_hooks[i];
+        hook.patch=dinotale32x9::make_function_jump(dinotale32x9::ground_rvas[i],dinotale32x9::ground_prologues[i],ground_replacements[i]);
+        hook.trampoline=VirtualAlloc(nullptr,64,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);
+        if (!hook.trampoline) { free_visibility_trampolines(); return false; }
+        auto* code=static_cast<uint8_t*>(hook.trampoline);
+        std::memcpy(code,hook.patch.original.data(),hook.patch.size);
+        const auto back=dinotale32x9::make_function_jump(0,{hook.patch.original.data(),hook.patch.size},
+            reinterpret_cast<uintptr_t>(host_image+hook.patch.rva+hook.patch.size));
+        std::memcpy(code+hook.patch.size,back.replacement.data(),14);
+        DWORD unused=0;
+        if (!VirtualProtect(code,64,PAGE_EXECUTE_READ,&unused)) { free_visibility_trampolines(); return false; }
+        FlushInstructionCache(GetCurrentProcess(),code,64);
+        hook.original=reinterpret_cast<Predicate>(hook.trampoline);
     }
     return true;
 }
@@ -240,7 +350,8 @@ bool install() {
     if (nt->Signature != IMAGE_NT_SIGNATURE || nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) { return false; }
     const std::span<const uint8_t> image{host_image, nt->OptionalHeader.SizeOfImage};
     if (!dinotale32x9::matches(image) || !dinotale32x9::visibility_guards_match(image)
-            || !dinotale32x9::background_guards_match(image) || !dinotale32x9::camera_guards_match(image)) { return false; }
+            || !dinotale32x9::background_guards_match(image) || !dinotale32x9::camera_guards_match(image)
+            || !dinotale32x9::ground_guards_match(image)) { return false; }
     if (!prepare_visibility_hooks()) { return false; }
     size_t applied = 0;
     for (; applied < dinotale32x9::patches.size(); ++applied) {
@@ -250,24 +361,20 @@ bool install() {
             return false;
         }
     }
-    for (size_t i=0; i<visibility_hooks.size(); ++i) {
-        if (!write_patch(visibility_hooks[i].patch, false)) {
-            while (i>0) { write_patch(visibility_hooks[--i].patch, true); visibility_hooks[i].applied = false; }
-            while (applied>0) { write_patch(dinotale32x9::patches[--applied], true); }
-            free_visibility_trampolines();
-            return false;
+    for (auto hooks : {std::span<VisibilityHook>{visibility_hooks},std::span<VisibilityHook>{background_hooks},std::span<VisibilityHook>{ground_hooks}}) {
+        for (auto& hook : hooks) {
+            if (!write_patch(hook.patch,false)) {
+                for (auto rollback : {std::span<VisibilityHook>{ground_hooks},std::span<VisibilityHook>{background_hooks},std::span<VisibilityHook>{visibility_hooks}}) {
+                    for (auto it=rollback.rbegin();it!=rollback.rend();++it) {
+                        if (it->applied) { write_patch(it->patch,true); it->applied=false; }
+                    }
+                }
+                while (applied>0) { write_patch(dinotale32x9::patches[--applied],true); }
+                free_visibility_trampolines();
+                return false;
+            }
+            hook.applied=true;
         }
-        visibility_hooks[i].applied = true;
-    }
-    for (size_t i=0; i<background_hooks.size(); ++i) {
-        if (!write_patch(background_hooks[i].patch,false)) {
-            while (i>0) { write_patch(background_hooks[--i].patch,true); background_hooks[i].applied=false; }
-            for (auto& hook : visibility_hooks) { if (hook.applied) { write_patch(hook.patch,true); hook.applied=false; } }
-            while (applied>0) { write_patch(dinotale32x9::patches[--applied],true); }
-            free_visibility_trampolines();
-            return false;
-        }
-        background_hooks[i].applied = true;
     }
     OutputDebugStringW(L"DinoTale 32:9: enabled on stock Windows 0.1.8; executable on disk unchanged.\n");
     installed = true;
@@ -281,6 +388,9 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved) {
         return install() ? TRUE : FALSE;
     }
     if (reason == DLL_PROCESS_DETACH && installed && reserved == nullptr) {
+        for (auto it=ground_hooks.rbegin();it!=ground_hooks.rend();++it) {
+            if (it->applied) { write_patch(it->patch,true);it->applied=false; }
+        }
         for (auto it=background_hooks.rbegin(); it!=background_hooks.rend(); ++it) {
             if (it->applied) { write_patch(it->patch,true); it->applied=false; }
         }

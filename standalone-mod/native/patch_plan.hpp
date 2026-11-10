@@ -58,6 +58,51 @@ inline bool camera_guards_match(std::span<const uint8_t> image) {
         && std::memcmp(image.data()+camera_wall_rva,camera_wall_prologue.data(),camera_wall_prologue.size()) == 0;
 }
 
+inline constexpr std::array<uint32_t,10> ground_rvas{
+    0x205B0,0x20730,0x1B14E0,0x1B1750,0x1B1D20,0x1B22B0,0x1B2DF0,0x1B2FB0,0x16D120,0x16DD90
+};
+inline constexpr std::array<uint8_t,15> ground_left_prologue{
+    0x56,0x57,0x53,0x48,0x83,0xEC,0x20,0x44,0x89,0xC6,0x89,0xD7,0x48,0x89,0xCB
+};
+inline constexpr std::array<uint8_t,15> ground_margin_prologue{
+    0x56,0x57,0x53,0x48,0x83,0xEC,0x20,0x44,0x89,0xC3,0x89,0xD6,0x48,0x89,0xCF
+};
+inline constexpr std::array<uint8_t,16> ground_scalar_prologue{
+    0x41,0x57,0x41,0x56,0x41,0x54,0x56,0x57,0x53,0x48,0x83,0xEC,0x28,0x48,0x89,0xD6
+};
+inline constexpr std::array<uint8_t,16> ground_horizontal_prologue{
+    0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x56,0x57,0x55,0x53,0x48,0x83,0xEC,0x28
+};
+inline constexpr std::array<uint8_t,16> ground_rectangle_prologue{
+    0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x56,0x57,0x55,0x53,0x48,0x83,0xEC,0x48
+};
+inline constexpr std::array<uint8_t,14> ground_validity_prologue{
+    0x41,0x57,0x41,0x56,0x56,0x57,0x53,0x48,0x83,0xEC,0x20,0x48,0x89,0xD6
+};
+inline constexpr std::array<uint8_t,19> ground_contact_prologue{
+    0x56,0x57,0x53,0x48,0x83,0xEC,0x20,0x48,0x89,0xD6,0x48,0x89,0xCF,0x8B,0x82,0xE8,0,0,0
+};
+inline constexpr std::array<uint8_t,21> ground_plain_contact_prologue{
+    0x56,0x57,0x53,0x48,0x83,0xEC,0x20,0x48,0x89,0xD6,0x48,0x89,0xCF,0x48,0xC7,0x42,0x70,0,0,0x0A,0x80
+};
+inline constexpr std::array<std::span<const uint8_t>,10> ground_prologues{
+    ground_left_prologue,ground_margin_prologue,ground_scalar_prologue,ground_horizontal_prologue,
+    ground_scalar_prologue,ground_rectangle_prologue,ground_validity_prologue,ground_scalar_prologue,ground_contact_prologue,
+    ground_plain_contact_prologue
+};
+inline bool ground_contact_is_camera_probe(uint32_t caller_rva) {
+    // Recursive camera scanner and both wall probes keep their original
+    // authored limits, while actor floor queries can use the added strip.
+    return caller_rva >= 0xEBFE0 && caller_rva < 0xEDFE0;
+}
+inline bool ground_guards_match(std::span<const uint8_t> image) {
+    for (size_t i=0; i<ground_rvas.size(); ++i) {
+        if (ground_rvas[i]>image.size() || ground_prologues[i].size()>image.size()-ground_rvas[i]
+            || std::memcmp(image.data()+ground_rvas[i],ground_prologues[i].data(),ground_prologues[i].size()) != 0) { return false; }
+    }
+    return true;
+}
+
 inline bool background_guards_match(std::span<const uint8_t> image) {
     for (const auto [rva, bytes] : std::array<std::pair<uint32_t,std::span<const uint8_t>>,2>{{
             {background_copy_rva, background_copy_prologue}, {background_cover_rva, background_cover_prologue}}}) {

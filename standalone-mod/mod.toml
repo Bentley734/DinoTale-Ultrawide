@@ -1,6 +1,6 @@
 [manifest]
 id = "dinotale_32x9"
-version = "0.2.3"
+version = "0.2.4"
 display_name = "DinoTale 32:9"
 description = "True 32:9 Expand support for the supported Windows DinoTale 0.1.8 executable. Requires the companion DinoTale32x9.dll beside this mod. Enable before starting the game, then choose Expand before entering a level."
 short_description = "Dedicated true 32:9 support."

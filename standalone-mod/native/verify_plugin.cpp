@@ -50,13 +50,16 @@ int wmain(int argc, wchar_t** argv) {
             good = false;
         }
     }
-    const std::array hooks{
+    std::vector<std::pair<uint32_t,std::span<const uint8_t>>> hooks{
         std::pair{dinotale32x9::visibility_rvas[0], std::span<const uint8_t>{dinotale32x9::visibility_prologue}},
         std::pair{dinotale32x9::visibility_rvas[1], std::span<const uint8_t>{dinotale32x9::visibility_prologue}},
         std::pair{dinotale32x9::background_copy_rva, std::span<const uint8_t>{dinotale32x9::background_copy_prologue}},
         std::pair{dinotale32x9::background_cover_rva, std::span<const uint8_t>{dinotale32x9::background_cover_prologue}},
         std::pair{dinotale32x9::camera_wall_rva, std::span<const uint8_t>{dinotale32x9::camera_wall_prologue}}
     };
+    for (size_t i=0;i<dinotale32x9::ground_rvas.size();++i) {
+        hooks.emplace_back(dinotale32x9::ground_rvas[i],dinotale32x9::ground_prologues[i]);
+    }
     for (const auto& [rva, prologue] : hooks) {
         std::array<uint8_t,32> bytes{};
         SIZE_T count = 0;
@@ -75,8 +78,10 @@ int wmain(int argc, wchar_t** argv) {
     };
     uint64_t visibility_checks = 0, wide_checks = 0, background_tiles = 0, masks_cleared = 0;
     uint64_t camera_steps = 0, eased_camera_steps = 0;
+    uint64_t ground_tiles = 0, ground_queries = 0;
     bool checks_found = false, wide_found = false, tiles_found = false, masks_found = false;
     bool camera_found = false, eased_camera_found = false;
+    bool ground_tiles_found = false, ground_queries_found = false;
     IMAGE_DOS_HEADER dos{};
     IMAGE_NT_HEADERS64 nt{};
     IMAGE_EXPORT_DIRECTORY exports{};
@@ -109,12 +114,19 @@ int wmain(int argc, wchar_t** argv) {
                 if (std::strcmp(name, "dinotale32x9_eased_camera_steps") == 0) {
                     eased_camera_found = read(functions[ordinals[i]], &eased_camera_steps, sizeof(eased_camera_steps));
                 }
+                if (std::strcmp(name, "dinotale32x9_ground_tiles") == 0) {
+                    ground_tiles_found = read(functions[ordinals[i]], &ground_tiles, sizeof(ground_tiles));
+                }
+                if (std::strcmp(name, "dinotale32x9_ground_queries") == 0) {
+                    ground_queries_found = read(functions[ordinals[i]], &ground_queries, sizeof(ground_queries));
+                }
             }
         }
     }
-    if (!checks_found || !wide_found || !tiles_found || !masks_found || !camera_found || !eased_camera_found) { good = false; }
+    if (!checks_found || !wide_found || !tiles_found || !masks_found || !camera_found || !eased_camera_found
+        || !ground_tiles_found || !ground_queries_found) { good = false; }
     CloseHandle(process);
-    if (good) { std::puts("Official host loaded companion DLL; five patches and all five placement/background/camera hooks verified"); }
+    if (good) { std::puts("Official host loaded companion DLL; five patches and all fifteen placement/background/camera/ground hooks verified"); }
     if (checks_found && wide_found) {
         std::printf("Placement checks: %llu; expanded-coordinate checks: %llu\n", static_cast<unsigned long long>(visibility_checks), static_cast<unsigned long long>(wide_checks));
     }
@@ -123,6 +135,9 @@ int wmain(int argc, wchar_t** argv) {
     }
     if (camera_found && eased_camera_found) {
         std::printf("Normal camera steps: %llu; eased camera steps: %llu\n", static_cast<unsigned long long>(camera_steps), static_cast<unsigned long long>(eased_camera_steps));
+    }
+    if (ground_tiles_found && ground_queries_found) {
+        std::printf("Extended ground tiles: %llu; extended collision queries: %llu\n", static_cast<unsigned long long>(ground_tiles), static_cast<unsigned long long>(ground_queries));
     }
     return good ? 0 : 1;
 }
