@@ -12,7 +12,7 @@ $output = Join-Path $root "build\standalone-mod"
 New-Item -ItemType Directory -Force -Path $output | Out-Null
 Push-Location $output
 try {
-    & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /O2 /MT /LD /Brepro "/clang:-ffile-prefix-map=$root=." (Join-Path $PSScriptRoot "native\plugin.cpp") /FeDinoTale32x9.dll /link /INCREMENTAL:NO
+    & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /wd4201 /O2 /MT /LD /Brepro "/I$root\lib\N64ModernRuntime\N64Recomp\include" "/clang:-ffile-prefix-map=$root=." (Join-Path $PSScriptRoot "native\plugin.cpp") /FeDinoTale32x9.dll /link /INCREMENTAL:NO
     if ($LASTEXITCODE -ne 0) { throw "Building native mod failed." }
     & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /UNDEBUG /MT (Join-Path $PSScriptRoot "native\patch_plan_test.cpp") /FePatchPlanTest.exe
     if ($LASTEXITCODE -ne 0) { throw "Building patch-plan tests failed." }
@@ -22,6 +22,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Building tile-request regression test failed." }
     & .\TileRequestPoolTest.exe
     if ($LASTEXITCODE -ne 0) { throw "Tile-request regression test failed." }
+    & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /UNDEBUG /MT (Join-Path $PSScriptRoot "native\visibility_test.cpp") /FeVisibilityTest.exe
+    if ($LASTEXITCODE -ne 0) { throw "Building visibility tests failed." }
+    & .\VisibilityTest.exe
+    if ($LASTEXITCODE -ne 0) { throw "Visibility tests failed." }
     & $ClangCl /nologo /std:c++20 /EHsc /W4 /WX /MT (Join-Path $PSScriptRoot "native\verify_plugin.cpp") /FeVerifyPlugin.exe
     if ($LASTEXITCODE -ne 0) { throw "Building plugin verification tool failed." }
     & .\VerifyPlugin.exe --reject (Join-Path $output "DinoTale32x9.dll")

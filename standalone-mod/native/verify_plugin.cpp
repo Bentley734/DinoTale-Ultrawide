@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cwchar>
 #include <cstdlib>
+#include <vector>
 #include "patch_plan.hpp"
 
 int wmain(int argc, wchar_t** argv) {
@@ -23,11 +24,17 @@ int wmain(int argc, wchar_t** argv) {
     MODULEENTRY32W entry{};
     entry.dwSize = sizeof(entry);
     uint8_t* base = nullptr;
+    uint8_t* companion = nullptr;
+    size_t companion_size = 0;
     bool companion_loaded = false;
     if (Module32FirstW(snapshot, &entry)) {
         do {
             if (_wcsicmp(entry.szModule, L"DinoTale.exe") == 0) { base = entry.modBaseAddr; }
-            if (_wcsicmp(entry.szModule, L"DinoTale32x9.dll") == 0) { companion_loaded = true; }
+            if (_wcsicmp(entry.szModule, L"DinoTale32x9.dll") == 0) {
+                companion_loaded = true;
+                companion = entry.modBaseAddr;
+                companion_size = entry.modBaseSize;
+            }
         } while (Module32NextW(snapshot, &entry));
     }
     CloseHandle(snapshot);
@@ -36,14 +43,59 @@ int wmain(int argc, wchar_t** argv) {
     if (process == nullptr) { return 1; }
     bool good = true;
     for (const auto& patch : dinotale32x9::patches) {
-        std::array<uint8_t,8> bytes{};
+        std::array<uint8_t,32> bytes{};
         SIZE_T count = 0;
         if (!ReadProcessMemory(process, base + patch.rva, bytes.data(), patch.size, &count) || count != patch.size
             || std::memcmp(bytes.data(), patch.replacement.data(), patch.size) != 0) {
             good = false;
         }
     }
+    for (uint32_t rva : dinotale32x9::visibility_rvas) {
+        std::array<uint8_t,18> bytes{};
+        SIZE_T count = 0;
+        if (!ReadProcessMemory(process, base+rva, bytes.data(), bytes.size(), &count) || count != bytes.size()) { good = false; continue; }
+        uintptr_t destination = 0;
+        std::memcpy(&destination, bytes.data()+6, sizeof(destination));
+        const auto expected = dinotale32x9::make_visibility_jump(rva, destination);
+        if (std::memcmp(bytes.data(), expected.replacement.data(), bytes.size()) != 0
+                || destination < reinterpret_cast<uintptr_t>(companion)
+                || destination >= reinterpret_cast<uintptr_t>(companion)+companion_size) { good = false; }
+    }
+    auto read = [&](size_t offset, void* data, size_t size) {
+        SIZE_T count = 0;
+        return offset <= companion_size && size <= companion_size-offset
+            && ReadProcessMemory(process, companion+offset, data, size, &count) && count == size;
+    };
+    uint64_t visibility_checks = 0, wide_checks = 0;
+    bool checks_found = false, wide_found = false;
+    IMAGE_DOS_HEADER dos{};
+    IMAGE_NT_HEADERS64 nt{};
+    IMAGE_EXPORT_DIRECTORY exports{};
+    if (read(0, &dos, sizeof(dos)) && dos.e_lfanew>0 && read(size_t(dos.e_lfanew), &nt, sizeof(nt))
+            && read(nt.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress, &exports, sizeof(exports))
+            && exports.NumberOfNames<64 && exports.NumberOfFunctions<64) {
+        std::vector<DWORD> names(exports.NumberOfNames), functions(exports.NumberOfFunctions);
+        std::vector<WORD> ordinals(exports.NumberOfNames);
+        if (read(exports.AddressOfNames, names.data(), names.size()*sizeof(DWORD))
+                && read(exports.AddressOfNameOrdinals, ordinals.data(), ordinals.size()*sizeof(WORD))
+                && read(exports.AddressOfFunctions, functions.data(), functions.size()*sizeof(DWORD))) {
+            for (size_t i=0; i<names.size(); ++i) {
+                char name[64]{};
+                if (!read(names[i], name, sizeof(name)-1) || ordinals[i]>=functions.size()) { continue; }
+                if (std::strcmp(name, "dinotale32x9_visibility_checks") == 0) {
+                    checks_found = read(functions[ordinals[i]], &visibility_checks, sizeof(visibility_checks));
+                }
+                if (std::strcmp(name, "dinotale32x9_wide_visibility_checks") == 0) {
+                    wide_found = read(functions[ordinals[i]], &wide_checks, sizeof(wide_checks));
+                }
+            }
+        }
+    }
+    if (!checks_found || !wide_found) { good = false; }
     CloseHandle(process);
-    if (good) { std::puts("Official host loaded companion DLL; all five in-memory patches verified"); }
+    if (good) { std::puts("Official host loaded companion DLL; five patches and both placement visibility hooks verified"); }
+    if (checks_found && wide_found) {
+        std::printf("Placement checks: %llu; expanded-coordinate checks: %llu\n", static_cast<unsigned long long>(visibility_checks), static_cast<unsigned long long>(wide_checks));
+    }
     return good ? 0 : 1;
 }

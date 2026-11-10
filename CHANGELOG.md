@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.2 — wider enemy and object loading
+
+- Extend the shared placement loader and retention predicates across the
+  expanded view. Standard placed enemies, items and other objects load
+  around the actual widescreen edges and remain active across that view.
+- Reuse DinoTale's mode-aware screen mapping so Original mode, vertical
+  limits, actor margins and the original respawn exclusion remain intact.
+- Preserve projected coordinates after each predicate, without changing
+  camera width, world positions, rendering or positional sound.
+- Add visibility boundary and pointer-restoration tests for 4:3, 16:9,
+  21:9 and 32:9, plus checked native-entry guards.
+- Keep the corrected background tile allocation from 0.2.1.
+- The user confirmed enemies and items now appear across the wider view
+  after installing the update in regular DinoTale.
+
 ## 0.2.1 — missing background tile fix
 
 - Fix rectangular holes in platforms, waves and other background layers at

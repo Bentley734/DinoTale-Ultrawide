@@ -14,8 +14,8 @@ inline constexpr char supported_sha256[] = "2cb1a2ee3f01ef75eaaae98485b0022e3b69
 struct Patch {
     uint32_t rva;
     size_t size;
-    std::array<uint8_t, 8> original;
-    std::array<uint8_t, 8> replacement;
+    std::array<uint8_t, 32> original;
+    std::array<uint8_t, 32> replacement;
 };
 
 // Exact Windows DinoTale 0.1.8 locations, guarded by whole-file identity
@@ -31,6 +31,35 @@ inline constexpr std::array<Patch, 5> patches{{
     // overwrite the next slot. Use the heap path above 52 entries instead.
     {0x1613F0, 5, {0x48,0x83,0x7A,0x28,0x69}, {0x48,0x83,0x7A,0x28,0x35}},
 }};
+
+inline constexpr std::array<uint32_t, 2> visibility_rvas{0x182900, 0x182B10};
+inline constexpr std::array<uint8_t, 18> visibility_prologue{
+    0x56,0x57,0x48,0x83,0xEC,0x28,0x48,0x89,0xD6,0x48,0x89,0xCF,0x8B,0x82,0xE8,0,0,0
+};
+inline constexpr uint32_t screen_x_mapper_rva = 0x20880;
+inline constexpr std::array<uint8_t, 7> screen_x_mapper_prologue{0x56,0x48,0x83,0xEC,0x20,0x89,0xCE};
+
+inline bool visibility_guards_match(std::span<const uint8_t> image) {
+    if (screen_x_mapper_rva > image.size() || screen_x_mapper_prologue.size() > image.size() - screen_x_mapper_rva
+            || std::memcmp(image.data()+screen_x_mapper_rva, screen_x_mapper_prologue.data(), screen_x_mapper_prologue.size()) != 0) { return false; }
+    for (uint32_t rva : visibility_rvas) {
+        if (rva > image.size() || visibility_prologue.size() > image.size()-rva
+                || std::memcmp(image.data()+rva, visibility_prologue.data(), visibility_prologue.size()) != 0) { return false; }
+    }
+    return true;
+}
+
+inline Patch make_visibility_jump(uint32_t rva, uintptr_t destination) {
+    Patch hook{};
+    hook.rva = rva;
+    hook.size = visibility_prologue.size();
+    std::memcpy(hook.original.data(), visibility_prologue.data(), hook.size);
+    hook.replacement.fill(0x90);
+    const uint8_t instruction[]{0xFF,0x25,0,0,0,0};
+    std::memcpy(hook.replacement.data(), instruction, sizeof(instruction));
+    std::memcpy(hook.replacement.data()+6, &destination, sizeof(destination));
+    return hook;
+}
 
 inline uint64_t hash_bytes(std::span<const uint8_t> bytes, uint64_t hash = 14695981039346656037ULL) {
     for (uint8_t byte : bytes) {

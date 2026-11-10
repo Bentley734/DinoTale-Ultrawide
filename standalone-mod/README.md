@@ -1,9 +1,15 @@
-# DinoTale 32:9 — installable mod v0.2.1
+# DinoTale 32:9 — installable mod v0.2.2
 
 True 32:9 Expand gameplay in the **official Windows DinoTale 0.1.8**.
 The package contains a normal `.nrm` mod and a companion native DLL.
 It uses DinoTale's own mod loader and does not replace or edit `DinoTale.exe`.
 This mod is dedicated solely to 32:9 support.
+
+Version 0.2.2 expands the shared placement checks so standard enemies,
+items and other placed objects load around the wider view's edges and
+remain active across it. It preserves actor margins, vertical limits and
+respawn rules. Individual scripted and proximity-based events keep their
+original rules.
 
 ## Install
 
@@ -38,6 +44,12 @@ unused upper 4 MB while staying below the runtime's reserved addresses.
 Changes are applied before game startup. The executable on disk remains
 unchanged.
 
+Two checked native hooks adapt the common placement and retention
+predicates using DinoTale's existing mode-aware screen mapping. Their
+coordinate inputs are restored after each call. Camera width, world
+positions, drawing and positional audio remain unchanged. Original mode
+uses its original bounds.
+
 Version 0.2.1 corrects an original allocation threshold that treated the
 104-byte request pool as if it held 104 two-byte tile IDs. At 32:9, 54/55-ID
 requests overwrote adjacent requests and caused missing rectangular tiles.
@@ -62,6 +74,13 @@ official build's HUD options and resize behavior.
   53/54/55-entry requests and verifies that the corrected threshold avoids it.
 - After installation in regular DinoTale, the user confirmed that the
   missing Cloud Cruising platform and wave tiles are fixed.
+- Visibility tests cover exact spawn/retain edges at 320, 432, 560 and
+  864-pixel view widths, actor margins, vertical rejection, Original mode,
+  and restoration of coordinate inputs despite argument-register changes.
+- Native-entry guards and both installed placement hooks are checked in
+  the running official game.
+- Live counters confirmed the expanded checks ran during gameplay, and
+  the user confirmed enemies/items now appear across the wider view.
 
 Full level coverage at 32:9 is not claimed.
 

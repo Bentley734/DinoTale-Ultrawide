@@ -2,7 +2,7 @@
 
 ## Current release: installable 32:9 mod
 
-[Download v0.2.1](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
+[Download v0.2.2](https://github.com/Bentley734/DinoTale-Ultrawide/releases/latest)
 for the **official Windows DinoTale 0.1.8**. Copy both
 `DinoTale-32x9.nrm` and `DinoTale32x9.dll` into
 `%LOCALAPPDATA%\dinotale\mods` (or the portable game's `mods` folder),
@@ -17,6 +17,8 @@ widening the window.
 
 Version 0.2.1 fixes the missing rectangular platform and wave tiles in
 Cloud Cruising by correcting an undersized tile-request pool allocation.
+Version 0.2.2 extends the common enemy/item placement and retention checks
+to the expanded view, so placed objects load before entering its edges.
 
 ## Earlier custom build
 
